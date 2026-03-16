@@ -422,22 +422,19 @@ document.getElementById('load-img-btn').addEventListener('click', async function
     var srcInfo    = await Gdal.getInfo(srcDataset);
     console.log('Source info:', JSON.stringify(srcInfo));
 
-    // 3. gdalwarp: reproject UTM -> EPSG:4326, output GeoTIFF
-    // Returns a file PATH (string), not a dataset object
+    // 3. gdalwarp: returns a path string, e.g., "/vsimem/output.tif"
     setImgStatus('Warping to EPSG:4326...');
     var warpedPath = await Gdal.gdalwarp(srcDataset, [
       '-of', 'GTiff',
       '-t_srs', 'EPSG:4326',
-      '-r', 'bilinear',
-      '-overwrite'
+      '-r', 'bilinear'
     ]);
     await Gdal.close(srcDataset);
-    console.log('Warped file path:', warpedPath);
 
-    // 4. Open the warped GeoTIFF to read its WGS84 corners
-    var warpedDataset = (await Gdal.open([warpedPath])).datasets[0];
-    var warpedInfo    = await Gdal.getInfo(warpedDataset);
-    console.log('Warped info:', JSON.stringify(warpedInfo));
+    // 4. Open the warped file path using Gdal.open
+    // Note: We pass the path string in the array
+    var warpedDatasetObj = (await Gdal.open([warpedPath])).datasets[0];
+    var warpedInfo = await Gdal.getInfo(warpedDatasetObj);
 
     var wc     = warpedInfo.corners;  // [[lng,lat], ...] now in EPSG:4326
     var allLng = wc.map(function(c) { return c[0]; });
@@ -446,22 +443,19 @@ document.getElementById('load-img-btn').addEventListener('click', async function
     var south  = Math.min.apply(null, allLat), north = Math.max.apply(null, allLat);
     console.log('WGS84 bounds:', west, south, east, north);
 
-    // 5. gdal_translate: scale to 8-bit PNG at reduced resolution
-    // Also returns a file PATH (string)
+    // 5. gdal_translate
     setImgStatus('Converting to PNG...');
-    var pngPath = await Gdal.gdal_translate(warpedDataset, [
+    var pngPath = await Gdal.gdal_translate(warpedDatasetObj, [
       '-of', 'PNG',
       '-ot', 'Byte',
       '-scale',
       '-outsize', '1024', '0'
     ]);
-    await Gdal.close(warpedDataset);
+    await Gdal.close(warpedDatasetObj);
 
-    // 6. Open PNG dataset and read bytes
-    setImgStatus('Rendering...');
-    var pngDataset = (await Gdal.open([pngPath])).datasets[0];
-    var pngBytes   = await Gdal.getFileBytes(pngDataset);
-    await Gdal.close(pngDataset);
+    // 6. Read bytes using the path returned
+    var pngBytes = await Gdal.getFileBytes(pngPath); 
+    // Note: getFileBytes often accepts the path string directly
 
     // 7. Create blob URL and add Leaflet ImageOverlay
     var blob    = new Blob([pngBytes], { type: 'image/png' });
