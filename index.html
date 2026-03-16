@@ -404,56 +404,63 @@ document.getElementById('load-img-btn').addEventListener('click', async function
 
 
   try {
-    // 1. Init GDAL — resolves when WASM is ready
+    // 1. Init GDAL WASM
     setImgStatus('Initialising GDAL...');
-    var Gdal = await initGdalJs({ path: 'https://cdn.jsdelivr.net/npm/gdal3.js@2.8.1/dist/package', useWorker: false });
+    var Gdal = await initGdalJs({
+      path: 'https://cdn.jsdelivr.net/npm/gdal3.js@2.8.1/dist/package',
+      useWorker: false
+    });
 
-    // 2. Fetch the GeoTIFF bytes and create a File object
+    // 2. Fetch GeoTIFF and wrap as File for Gdal.open()
     setImgStatus('Fetching GeoTIFF...');
     var response = await fetch(url);
     if (!response.ok) throw new Error('HTTP ' + response.status);
     var tifFile = new File([await response.arrayBuffer()], 'input.tif', { type: 'image/tiff' });
     console.log('Fetched', tifFile.size, 'bytes');
 
-    // 3. Open with GDAL — pass File in array
+    // 3. Open with GDAL
     setImgStatus('Opening with GDAL...');
     var openResult = await Gdal.open([tifFile]);
-    var dataset    = openResult.datasets[0];
+    var srcDataset  = openResult.datasets[0];
 
-    // 4. Get dataset info — use corners (UTM) and reproject to WGS84 using proj4
-    var info = await Gdal.getInfo(dataset);
-    console.log('GDAL info:', JSON.stringify(info));
+    // 4. gdalwarp: reproject UTM -> EPSG:4326, output as GeoTIFF
+    // NOTE: gdalwarp only supports -of, -t_srs, -s_srs, -te, -tr, -r, -overwrite
+    // -scale, -ts, -outsize, -ot are gdal_translate options — not valid here
+    setImgStatus('Warping UTM to EPSG:4326...');
+    var warpedDataset = await Gdal.gdalwarp(srcDataset, [
+      '-of', 'GTiff',
+      '-t_srs', 'EPSG:4326',
+      '-r', 'bilinear',
+      '-overwrite'
+    ]);
+    await Gdal.close(srcDataset);
 
-    // 5. gdalwarp: reproject to EPSG:4326 and output as scaled PNG in one step
-    setImgStatus('Warping to EPSG:4326...');
-    var pngDataset = await Gdal.gdalwarp(dataset, [
+    // 5. Get warped dataset info — corners are now in EPSG:4326 degrees
+    var warpedInfo = await Gdal.getInfo(warpedDataset);
+    console.log('Warped info:', JSON.stringify(warpedInfo));
+    var wc    = warpedInfo.corners;
+    var allLng = wc.map(function(c){return c[0];});
+    var allLat = wc.map(function(c){return c[1];});
+    var west  = Math.min.apply(null, allLng), east  = Math.max.apply(null, allLng);
+    var south = Math.min.apply(null, allLat), north = Math.max.apply(null, allLat);
+    console.log('WGS84 bounds:', west, south, east, north);
+
+    // 6. gdal_translate: convert warped GeoTIFF to 8-bit PNG at reduced resolution
+    // -scale auto-stretches min->max to 0->255
+    // -outsize limits resolution for browser display
+    setImgStatus('Converting to PNG...');
+    var pngDataset = await Gdal.gdal_translate(warpedDataset, [
       '-of', 'PNG',
       '-ot', 'Byte',
       '-scale',
-      '-t_srs', 'EPSG:4326',
-      '-r', 'bilinear',
-      '-ts', '1024', '0',
-      '-overwrite'
+      '-outsize', '1024', '0'
     ]);
-    await Gdal.close(dataset);
+    await Gdal.close(warpedDataset);
 
-    // 6. Get PNG bytes -> blob URL
+    // 7. Read PNG bytes, make blob URL, add Leaflet ImageOverlay
     setImgStatus('Rendering...');
     var pngBytes = await Gdal.getFileBytes(pngDataset);
-
-    // 7. Read the warped dataset's info to get WGS84 corners for correct placement
-    var warpedInfo = await Gdal.getInfo(pngDataset);
-    console.log('Warped info:', JSON.stringify(warpedInfo));
     await Gdal.close(pngDataset);
-
-    // warpedInfo.corners are now in EPSG:4326 [lng, lat] pairs
-    // corners order: [topLeft, topRight, bottomRight, bottomLeft]
-    var wc     = warpedInfo.corners;
-    var allLng = wc.map(function(c){return c[0];});
-    var allLat = wc.map(function(c){return c[1];});
-    var west   = Math.min.apply(null, allLng), east  = Math.max.apply(null, allLng);
-    var south  = Math.min.apply(null, allLat), north = Math.max.apply(null, allLat);
-    console.log('WGS84 bounds:', west, south, east, north);
 
     var blob    = new Blob([pngBytes], { type: 'image/png' });
     var blobUrl = URL.createObjectURL(blob);
