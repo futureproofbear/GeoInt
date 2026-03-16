@@ -407,98 +407,75 @@ document.getElementById('load-img-btn').addEventListener('click', async function
   console.log('GEC URL:', url);
 
   var Gdal = null;
-  var inputPath  = '/vsimem/input.tif';
-  var outputPath = '/vsimem/output.png';
 
   try {
     // 1. Wait for GDAL WASM to be ready
-    setImgStatus('Initialising GDAL…');
+    setImgStatus('Initialising GDAL...');
     Gdal = await gdalReady;
 
-    // 2. Fetch the GeoTIFF
-    setImgStatus('Fetching GeoTIFF…');
+    // 2. Fetch the GeoTIFF and wrap in a File object
+    // gdal3.js opens files via Gdal.open([File]) - no manual FS writes needed
+    setImgStatus('Fetching GeoTIFF...');
     var response = await fetch(url);
     if (!response.ok) throw new Error('HTTP ' + response.status);
-    var tifBytes = new Uint8Array(await response.arrayBuffer());
-    console.log('Fetched', tifBytes.length, 'bytes');
+    var arrayBuffer = await response.arrayBuffer();
+    var tifFile = new File([arrayBuffer], 'input.tif', { type: 'image/tiff' });
+    console.log('Fetched', arrayBuffer.byteLength, 'bytes');
 
-    // 3. Write into GDAL virtual filesystem
-    Gdal.FS.writeFile(inputPath, tifBytes);
-
-    // 4. Open with GDAL to read metadata (projection, bounds)
-    setImgStatus('Reading metadata…');
-    var openResult = await Gdal.open([inputPath]);
+    // 3. Open with GDAL to read metadata
+    setImgStatus('Reading metadata...');
+    var openResult = await Gdal.open([tifFile]);
     var dataset    = openResult.datasets[0];
     var info       = await Gdal.getInfo(dataset);
-    console.log('GDAL info:', JSON.stringify(info, null, 2));
+    console.log('GDAL info:', JSON.stringify(info));
 
-    // Extract geographic bounds from GDAL info
-    // info.wgs84Extent gives corners in WGS84 regardless of source CRS
-    var ext  = info.wgs84Extent;   // { coordinates: [[[lng,lat],...]] }
+    // Extract WGS84 bounding box - GDAL computes this regardless of source CRS
+    var ext    = info.wgs84Extent;
     var coords = ext.coordinates[0];
-    var lngs = coords.map(function(c){return c[0];});
-    var lats = coords.map(function(c){return c[1];});
-    var west  = Math.min.apply(null, lngs);
-    var east  = Math.max.apply(null, lngs);
-    var south = Math.min.apply(null, lats);
-    var north = Math.max.apply(null, lats);
+    var lngs   = coords.map(function(c) { return c[0]; });
+    var lats   = coords.map(function(c) { return c[1]; });
+    var west   = Math.min.apply(null, lngs);
+    var east   = Math.max.apply(null, lngs);
+    var south  = Math.min.apply(null, lats);
+    var north  = Math.max.apply(null, lats);
     console.log('WGS84 bounds:', west, south, east, north);
 
+    // 4. gdal_translate: reproject to EPSG:4326, scale to 8-bit, output PNG
+    setImgStatus('Translating & warping...');
+    var outputDataset = await Gdal.gdal_translate(dataset, [
+      '-of', 'PNG',
+      '-ot', 'Byte',
+      '-scale',
+      '-t_srs', 'EPSG:4326',
+      '-r', 'bilinear',
+      '-outsize', '1024', '0'
+    ]);
     await Gdal.close(dataset);
 
-    // 5. Use gdal_translate to:
-    //    - warp to EPSG:4326 (gdalwarp would be ideal but gdal_translate handles
-    //      the reprojection when combined with -a_srs and the data is already
-    //      georeferenced; for full warping use gdalwarp options below)
-    //    - scale to 8-bit (GDAL auto-scales Float32 → Byte with -scale)
-    //    - output as PNG for easy canvas rendering
-    setImgStatus('Warping & translating…');
-    var translateOptions = [
-      '-of', 'PNG',            // output format
-      '-ot', 'Byte',           // output type: 8-bit
-      '-scale',                // auto-scale min→max to 0→255
-      '-t_srs', 'EPSG:4326',   // reproject to WGS84
-      '-r', 'bilinear',        // resampling method
-      '-outsize', '1024', '0'  // limit width to 1024px (height auto)
-    ];
-
-    var openResult2 = await Gdal.open([inputPath]);
-    var srcDataset  = openResult2.datasets[0];
-    var outputDataset = await Gdal.gdal_translate(srcDataset, translateOptions);
-    await Gdal.close(srcDataset);
-
-    // 6. Read output PNG bytes
-    setImgStatus('Rendering…');
+    // 5. Read output PNG bytes and create blob URL
+    setImgStatus('Rendering...');
     var pngBytes = await Gdal.getFileBytes(outputDataset);
     await Gdal.close(outputDataset);
 
-    // 7. Create blob URL from PNG bytes and add as Leaflet ImageOverlay
     var blob    = new Blob([pngBytes], { type: 'image/png' });
     var blobUrl = URL.createObjectURL(blob);
     var bounds  = L.latLngBounds([[south, west], [north, east]]);
 
+    // 6. Add as Leaflet ImageOverlay using GDAL-computed WGS84 bounds
     gecImageLayer = L.imageOverlay(blobUrl, bounds, { opacity: 0.9, interactive: false });
     gecImageLayer.addTo(map);
-
-    // Zoom to the footprint polygon (ground truth bounds)
     map.fitBounds(item.layer.getBounds(), { padding: [40, 40] });
 
-    remBtn.style.display   = 'inline-block';
-    loadBtn.disabled       = false;
-    loadBtn.innerHTML      = '&#9654; Reload GEC image';
-    setImgStatus('GEC loaded \u2713');
+    remBtn.style.display = 'inline-block';
+    loadBtn.disabled     = false;
+    loadBtn.innerHTML    = '&#9654; Reload GEC image';
+    setImgStatus('GEC loaded ✓');
 
   } catch(e) {
     console.error('GEC load error:', e);
     loadBtn.disabled  = false;
     loadBtn.innerHTML = '&#9654; Load GEC image';
     setImgStatus('Failed: ' + (e.message || String(e)), true);
-  } finally {
-    // Clean up virtual filesystem
-    if (Gdal) {
-      try { Gdal.FS.unlink(inputPath);  } catch(e) {}
-      try { Gdal.FS.unlink(outputPath); } catch(e) {}
-    }
   }
 });
 
