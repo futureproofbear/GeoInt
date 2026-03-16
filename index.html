@@ -420,41 +420,40 @@ document.getElementById('load-img-btn').addEventListener('click', async function
     var openResult = await Gdal.open([tifFile]);
     var dataset    = openResult.datasets[0];
 
-    // 4. Get dataset info — wgs84Extent gives bounds in EPSG:4326 regardless of source CRS
+    // 4. Get dataset info — use corners (UTM) and reproject to WGS84 using proj4
     var info = await Gdal.getInfo(dataset);
     console.log('GDAL info:', JSON.stringify(info));
-    var coords = info.wgs84Extent.coordinates[0];
-    var lngs   = coords.map(function(c) { return c[0]; });
-    var lats   = coords.map(function(c) { return c[1]; });
-    var west   = Math.min.apply(null, lngs), east  = Math.max.apply(null, lngs);
-    var south  = Math.min.apply(null, lats), north = Math.max.apply(null, lats);
-    console.log('WGS84 bounds:', west, south, east, north);
 
-    // 5. gdalwarp: reproject to EPSG:4326 as GeoTIFF first (gdal_translate alone
-    //    cannot warp between projections — gdalwarp handles UTM -> WGS84 correctly)
+    // 5. gdalwarp: reproject to EPSG:4326 and output as scaled PNG in one step
     setImgStatus('Warping to EPSG:4326...');
-    var warpedDataset = await Gdal.gdalwarp(dataset, [
-      '-of', 'GTiff',
+    var pngDataset = await Gdal.gdalwarp(dataset, [
+      '-of', 'PNG',
+      '-ot', 'Byte',
+      '-scale',
       '-t_srs', 'EPSG:4326',
       '-r', 'bilinear',
-      '-outsize', '1024', '0',
+      '-ts', '1024', '0',
       '-overwrite'
     ]);
     await Gdal.close(dataset);
 
-    // 6. gdal_translate: scale to 8-bit PNG for display
-    setImgStatus('Converting to PNG...');
-    var pngDataset = await Gdal.gdal_translate(warpedDataset, [
-      '-of', 'PNG',
-      '-ot', 'Byte',
-      '-scale'
-    ]);
-    await Gdal.close(warpedDataset);
-
-    // 7. Get PNG bytes -> blob URL -> Leaflet ImageOverlay
+    // 6. Get PNG bytes -> blob URL
     setImgStatus('Rendering...');
     var pngBytes = await Gdal.getFileBytes(pngDataset);
+
+    // 7. Read the warped dataset's info to get WGS84 corners for correct placement
+    var warpedInfo = await Gdal.getInfo(pngDataset);
+    console.log('Warped info:', JSON.stringify(warpedInfo));
     await Gdal.close(pngDataset);
+
+    // warpedInfo.corners are now in EPSG:4326 [lng, lat] pairs
+    // corners order: [topLeft, topRight, bottomRight, bottomLeft]
+    var wc     = warpedInfo.corners;
+    var allLng = wc.map(function(c){return c[0];});
+    var allLat = wc.map(function(c){return c[1];});
+    var west   = Math.min.apply(null, allLng), east  = Math.max.apply(null, allLng);
+    var south  = Math.min.apply(null, allLat), north = Math.max.apply(null, allLat);
+    console.log('WGS84 bounds:', west, south, east, north);
 
     var blob    = new Blob([pngBytes], { type: 'image/png' });
     var blobUrl = URL.createObjectURL(blob);
