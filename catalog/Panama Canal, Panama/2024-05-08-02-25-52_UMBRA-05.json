@@ -1,0 +1,146 @@
+{
+  "version": "2.0.0",
+  "vendor": "Umbra Space",
+  "imagingMode": "SPOTLIGHT",
+  "orderType": "SNAPSHOT",
+  "productSku": "UMB-SPOTLIGHT-50-2",
+  "baseIpr": 0.25,
+  "targetIpr": 0.5,
+  "umbraSatelliteName": "UMBRA_05",
+  "collects": [
+    {
+      "id": "47fd301d-d70c-4764-832b-a7fb12a2f50c",
+      "taskId": "b4194c11-c75c-4195-bbba-bba7c6c22c29",
+      "revisitId": null,
+      "startAtUTC": "2024-05-08T02:25:53+00:00",
+      "endAtUTC": "2024-05-08T02:26:00.858857+00:00",
+      "radarBand": "X",
+      "radarCenterFrequencyHz": 9799989758.175798,
+      "polarizations": [
+        "VV"
+      ],
+      "angleAzimuthDegrees": 120.7774844237056,
+      "angleGrazingDegrees": 62.49673907053615,
+      "angleIncidenceDegrees": 27.50326092946385,
+      "angleSquintDegrees": 132.95571899414062,
+      "slantRangeMeters": 605760.7693781008,
+      "antennaGainDb": 0.0,
+      "satelliteTrack": "ASCENDING",
+      "observationDirection": "LEFT",
+      "timeOfCenterOfAperturePolynomial": {
+        "Coefs": [
+          [
+            4.91050485524263
+          ]
+        ]
+      },
+      "sceneCenterPointLla": {
+        "type": "Point",
+        "coordinates": [
+          -79.5813827957436,
+          8.973667919763011,
+          13.332477690723316
+        ]
+      },
+      "footprintPolygonLla": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              -79.55021648242482,
+              8.981520376492112,
+              14.31269449771298
+            ],
+            [
+              -79.58928506125702,
+              9.004655856275024,
+              14.318482187677617
+            ],
+            [
+              -79.6125516641998,
+              8.965811848608379,
+              14.312939843569684
+            ],
+            [
+              -79.57348576650347,
+              8.942678780748658,
+              14.318483672974946
+            ],
+            [
+              -79.55021648242482,
+              8.981520376492112,
+              14.31269449771298
+            ]
+          ]
+        ]
+      },
+      "maxGroundResolution": {
+        "azimuthMeters": 0.1823093290278815,
+        "rangeMeters": 0.45248291098282084
+      },
+      "sceneSize": "5x5_KM"
+    }
+  ],
+  "derivedProducts": {
+    "GEC": [
+      {
+        "numRows": 16001,
+        "numColumns": 16001,
+        "groundResolution": {
+          "azimuthMeters": 0.5,
+          "rangeMeters": 0.5
+        },
+        "looks": {
+          "azimuth": 2.0,
+          "range": 1.0
+        }
+      }
+    ],
+    "SICD": [
+      {
+        "numRows": 13310,
+        "numColumns": 46080,
+        "groundResolution": {
+          "azimuthMeters": -1.0,
+          "rangeMeters": -1.0
+        },
+        "slantResolution": {
+          "azimuthMeters": -1.0,
+          "rangeMeters": -1.0
+        },
+        "apertureReferencePointPolynomial": {
+          "X": {
+            "Coefs": [
+              1483986.477657353,
+              -1666.3000592447752,
+              -0.8430254908050139,
+              0.0005332626512956784,
+              8.19384220055019e-08,
+              -2.6081857179894136e-11
+            ]
+          },
+          "Y": {
+            "Coefs": [
+              -6700411.551688553,
+              636.4222675683558,
+              4.1373566284036665,
+              -8.317722680686868e-05,
+              -4.3459851857620386e-07,
+              -7.740866285395452e-11
+            ]
+          },
+          "Z": {
+            "Coefs": [
+              894095.2524932355,
+              7457.851199446275,
+              -0.5397973257532719,
+              -0.0015011987061886172,
+              5.333719110213785e-08,
+              1.058304098934479e-10
+            ]
+          }
+        }
+      }
+    ]
+  }
+}
