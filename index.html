@@ -10,41 +10,20 @@
     :root {
       --bg:#0d1117; --surface:#161b22; --border:#30363d;
       --accent:#58a6ff; --accent2:#3fb950; --text:#e6edf3;
-      --muted:#8b949e; --danger:#f85149; --sidebar-w:300px;
+      --muted:#8b949e; --danger:#f85149; --warn:#ffa657;
+      --sidebar-w:300px;
     }
     body { font-family:'IBM Plex Sans',sans-serif; background:var(--bg); color:var(--text); display:flex; flex-direction:column; height:100vh; overflow:hidden; }
-    #header { height:48px; background:var(--surface); border-bottom:1px solid var(--border); display:flex; align-items:center; padding:0 16px; gap:10px; flex-shrink:0; z-index:1000; }
+    #header { height:48px; background:var(--surface); border-bottom:1px solid var(--border); display:flex; align-items:center; padding:0 16px; gap:10px; flex-shrink:0; z-index:1000; position:relative; }
     #header h1 { font-family:'IBM Plex Mono',monospace; font-size:13px; font-weight:500; letter-spacing:0.08em; color:var(--accent); text-transform:uppercase; }
     #status { font-size:11px; color:var(--muted); font-family:'IBM Plex Mono',monospace; margin-left:auto; }
-    .hdr-btn { background:none; border:1px solid var(--border); color:var(--muted); padding:4px 10px; border-radius:4px; cursor:pointer; font-size:12px; font-family:'IBM Plex Mono',monospace; transition:all 0.15s; }
+    .hdr-btn { background:none; border:1px solid var(--border); color:var(--muted); padding:4px 10px; border-radius:4px; cursor:pointer; font-size:12px; font-family:'IBM Plex Mono',monospace; transition:all 0.15s; white-space:nowrap; }
     .hdr-btn:hover { border-color:var(--accent); color:var(--accent); }
-    #load-bar { position:absolute; bottom:0; left:0; height:2px; background:var(--accent); width:0%; transition:width 0.3s; }
+    .hdr-btn.reload:hover { border-color:var(--accent2); color:var(--accent2); }
+    .hdr-btn.reload.spinning { color:var(--accent2); border-color:var(--accent2); animation:spin 1s linear infinite; }
+    @keyframes spin { to { transform:rotate(360deg); } }
+    #load-bar { position:absolute; bottom:0; left:0; height:2px; background:var(--accent); width:0%; transition:width 0.3s; z-index:999; }
     #body { display:flex; flex:1; overflow:hidden; }
-<<<<<<< HEAD
-    #sidebar { width:var(--sidebar-w); background:var(--surface); border-right:1px solid var(--border); display:flex; flex-direction:column; overflow:hidden; }
-    #sidebar-header { padding:14px; border-bottom:1px solid var(--border); }
-    #location-filter, #search-input { width:100%; background:var(--bg); border:1px solid var(--border); color:var(--text); font-size:12px; padding:8px; border-radius:4px; margin-bottom:8px; }
-    #dataset-list { flex:1; overflow-y:auto; }
-    .dataset-item { padding:12px; border-bottom:1px solid var(--border); cursor:pointer; font-size:11px; transition: background 0.2s; }
-    .dataset-item:hover { background: rgba(88, 166, 255, 0.05); }
-    .dataset-item.active { border-left: 3px solid var(--accent); background: rgba(88, 166, 255, 0.1); }
-    #detail-panel { padding:14px; background:var(--bg); border-top:1px solid var(--border); display:none; }
-    #detail-panel.visible { display:block; }
-    #map { flex:1; position:relative; }
-    
-    /* Transparency Slider */
-    #opacity-control {
-      position: absolute; bottom: 24px; left: 50%; transform: translateX(-50%);
-      background: var(--surface); border: 1px solid var(--border);
-      padding: 10px 18px; border-radius: 30px; z-index: 1000;
-      display: none; align-items: center; gap: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.5);
-    }
-    #opacity-control.visible { display: flex; }
-    #opacity-slider { cursor: pointer; accent-color: var(--accent); width: 120px; }
-    .img-btn { font-size:11px; font-family:'IBM Plex Mono',monospace; padding:6px 12px; border-radius:4px; cursor:pointer; border:1px solid var(--border); background:none; margin-top:8px; width:100%; }
-    .img-btn.load { color:var(--accent2); border-color:#3fb95060; }
-    .img-btn.remove { color:var(--danger); border-color:#f8514960; display:none; }
-=======
     #sidebar { width:var(--sidebar-w); background:var(--surface); border-right:1px solid var(--border); display:flex; flex-direction:column; flex-shrink:0; transition:width 0.2s ease,opacity 0.2s ease; overflow:hidden; }
     #sidebar.collapsed { width:0; opacity:0; pointer-events:none; }
     #sidebar-header { padding:10px 14px 8px; border-bottom:1px solid var(--border); flex-shrink:0; }
@@ -79,7 +58,7 @@
     .item-tag.sat  { border-color:#58a6ff40; color:var(--accent);  background:#58a6ff10; }
     .item-loading { font-size:11px; font-family:'IBM Plex Mono',monospace; color:var(--muted); padding:8px 14px; opacity:0.6; }
     .item-error { color:var(--danger) !important; opacity:0.8; }
-    #map { flex:1; }
+    #map { flex:1; position: relative; }
     #detail-panel { border-top:1px solid var(--border); background:var(--bg); flex-shrink:0; display:none; flex-direction:column; max-height:310px; }
     #detail-panel.visible { display:flex; }
     #detail-header { display:flex; justify-content:space-between; align-items:center; padding:8px 14px 6px; flex-shrink:0; }
@@ -101,41 +80,61 @@
     .img-btn.remove { color:var(--danger); border-color:#f8514960; display:none; }
     .img-btn.remove:hover { background:#f8514915; border-color:var(--danger); }
     #img-status { font-size:10px; font-family:'IBM Plex Mono',monospace; color:var(--muted); }
->>>>>>> parent of 7e51ff5 (Update index.html)
+
+    /* Opacity Control Styles */
+    #opacity-control {
+      position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
+      background: var(--surface); border: 1px solid var(--border);
+      padding: 10px 16px; border-radius: 8px; z-index: 1000;
+      display: none; align-items: center; gap: 12px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+    }
+    #opacity-control.visible { display: flex; }
+    #opacity-control label { font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--accent); text-transform:uppercase; letter-spacing:0.05em; }
+    #opacity-slider { cursor: pointer; width: 140px; accent-color: var(--accent); }
   </style>
 </head>
 <body>
 <div id="header">
   <h1>GeoInt Catalog</h1>
-  <button class="hdr-btn" id="reload-btn">Reload</button>
-  <span id="status">Initializing...</span>
+  <button class="hdr-btn" id="toggle-sidebar">&#9776; Datasets</button>
+  <button class="hdr-btn reload" id="reload-btn">&#8635; Reload</button>
+  <button class="hdr-btn" id="map-mode-btn">&#9790; Night</button>
+  <span id="status">Loading…</span>
   <div id="load-bar"></div>
 </div>
 <div id="body">
   <div id="sidebar">
     <div id="sidebar-header">
+      <h2>Datasets</h2>
       <select id="location-filter"><option value="">All locations</option></select>
-      <input id="search-input" type="text" placeholder="Search datasets..."/>
+      <input id="search-input" type="text" placeholder="Search dataset name…"/>
+    </div>
+    <div id="bulk-row">
+      <button class="bulk-btn" id="check-all">Check all</button>
+      <button class="bulk-btn" id="uncheck-all">Uncheck all</button>
+      <span id="dataset-count">—</span>
     </div>
     <div id="dataset-list"></div>
     <div id="detail-panel">
-      <h3 style="font-size:11px; color:var(--accent); margin-bottom:10px;">COLLECT DETAILS</h3>
-      <div id="detail-rows" style="font-size:10px; font-family: 'IBM Plex Mono';"></div>
-      <button class="img-btn load" id="load-img-btn">Load GEC Image</button>
-      <button class="img-btn remove" id="remove-img-btn">Remove Image</button>
-      <div id="img-status" style="font-size:10px; margin-top:8px; color:var(--muted);"></div>
+      <div id="detail-header">
+        <h3>Collect details</h3>
+        <span id="detail-close" title="Close">&#10005;</span>
+      </div>
+      <div id="detail-rows"></div>
+      <div id="img-btn-row">
+        <button class="img-btn load" id="load-img-btn">&#9654; Load GEC image</button>
+        <button class="img-btn remove" id="remove-img-btn">&#9726; Remove image</button>
+        <span id="img-status"></span>
+      </div>
     </div>
   </div>
   <div id="map">
     <div id="opacity-control">
-      <span style="font-size:10px; font-family:'IBM Plex Mono'; color:var(--accent);">OPACITY</span>
+      <label>SAR Opacity</label>
       <input type="range" id="opacity-slider" min="0" max="1" step="0.01" value="0.9">
     </div>
   </div>
-<<<<<<< HEAD
-=======
-  <div id="map"></div>
->>>>>>> parent of 7e51ff5 (Update index.html)
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
@@ -144,22 +143,90 @@
 <script>
 'use strict';
 
-var map = L.map('map').setView([0, 0], 2);
-L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', { maxZoom: 19 }).addTo(map);
+// ── MAP ────────────────────────────────────────────────────────────────────
+var map = L.map('map', { zoomControl: true }).setView([0, 0], 2);
+var TILES = {
+  night: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+  day:   'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'
+};
+var ATTR = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CARTO</a>';
+var currentMode = 'night';
+var baseTile = L.tileLayer(TILES.night, { attribution: ATTR, maxZoom: 19 }).addTo(map);
 
-var allItems = [], activeItem = null, gecImageLayer = null;
+document.getElementById('map-mode-btn').addEventListener('click', function() {
+  var next = currentMode === 'night' ? 'day' : 'night';
+  map.removeLayer(baseTile);
+  baseTile = L.tileLayer(TILES[next], { attribution: ATTR, maxZoom: 19 }).addTo(map);
+  baseTile.bringToBack();
+  currentMode = next;
+  this.innerHTML = next === 'night' ? '&#9728; Day' : '&#9790; Night';
+});
 
-async function fetchWithRetry(url, retries = 2) {
-  for (let i = 0; i <= retries; i++) {
+// ── STATE ──────────────────────────────────────────────────────────────────
+var COLORS = ['#58a6ff','#3fb950','#f78166','#d2a8ff','#ffa657'];
+var locationColors = {}, colorIdx = 0;
+function getColor(loc) {
+  if (!locationColors[loc]) locationColors[loc] = COLORS[colorIdx++ % COLORS.length];
+  return locationColors[loc];
+}
+var allItems = [];
+var activeItem = null;
+var gecImageLayer = null;
+
+// ── SIDEBAR TOGGLE ─────────────────────────────────────────────────────────
+document.getElementById('toggle-sidebar').addEventListener('click', function() {
+  document.getElementById('sidebar').classList.toggle('collapsed');
+  setTimeout(function() { map.invalidateSize(); }, 220);
+});
+
+// ── RELOAD ─────────────────────────────────────────────────────────────────
+document.getElementById('reload-btn').addEventListener('click', async function() {
+  var btn = this;
+  btn.classList.add('spinning'); btn.disabled = true;
+  removeGecImage();
+  allItems.forEach(function(i) { if (map.hasLayer(i.layer)) map.removeLayer(i.layer); });
+  allItems = []; activeItem = null;
+  document.getElementById('dataset-list').innerHTML = '';
+  document.getElementById('detail-panel').classList.remove('visible');
+  document.getElementById('load-bar').style.cssText = 'opacity:1;width:0%';
+  document.getElementById('location-filter').value = '';
+  document.getElementById('search-input').value = '';
+  try { await loadCatalog(); } catch(e) { document.getElementById('status').textContent = 'Reload failed'; console.error(e); }
+  btn.classList.remove('spinning'); btn.disabled = false;
+});
+
+// ── LOAD CATALOG ───────────────────────────────────────────────────────────
+async function loadCatalog() {
+  var res = await fetch('catalog/catalog_index.json?t=' + Date.now());
+  var entries = await res.json();
+  var total = entries.length;
+
+  var sel = document.getElementById('location-filter');
+  while (sel.options.length > 1) sel.remove(1);
+  Array.from(new Set(entries.map(function(e) { return e.location; }))).sort().forEach(function(loc) {
+    var o = document.createElement('option'); o.value = loc; o.textContent = loc; sel.appendChild(o);
+  });
+
+  var listEl = document.getElementById('dataset-list');
+  var loadBar = document.getElementById('load-bar');
+  var allBounds = [];
+  var loaded = 0, failed = 0, cbIdx = 0;
+
+  for (var i = 0; i < entries.length; i++) {
+    var entry = entries[i];
+    var relPath = entry.json_saved
+      .replace(/\\/g, '/')
+      .replace(/^\.\//, '')
+      .split('/')
+      .map(function(seg) { return encodeURIComponent(seg); })
+      .join('/');
+
+    var row = document.createElement('div');
+    row.className = 'dataset-item';
+    row.innerHTML = '<div class="item-loading">&#8987; ' + entry.dataset_name + '</div>';
+    listEl.appendChild(row);
+
     try {
-<<<<<<< HEAD
-      const res = await fetch(url);
-      if (res.ok) return res;
-      if (res.status === 404) throw new Error("404 Not Found");
-    } catch (e) { 
-      if (i === retries) throw e; 
-      console.warn(`Retry ${i+1} for ${url}`);
-=======
       var r = await fetch(relPath + '?t=' + Date.now());
       if (!r.ok) throw new Error(r.status);
       var json = await r.json();
@@ -196,7 +263,7 @@ async function fetchWithRetry(url, retries = 2) {
         var item = { entry: entry, layer: layer, collect: collect, json: json, row: row, checkbox: checkbox };
         allItems.push(item);
         checkbox.addEventListener('change', function() {
-          if (checkbox.checked) map.addLayer(layer); else map.removeLayer(i.layer);
+          if (checkbox.checked) map.addLayer(layer); else map.removeLayer(layer);
           updateCount();
         });
         row.querySelector('.item-body').addEventListener('click', function() {
@@ -210,74 +277,57 @@ async function fetchWithRetry(url, retries = 2) {
     } catch(e) {
       row.innerHTML = '<div class="item-loading item-error">&#10007; ' + entry.dataset_name + '</div>';
       failed++;
->>>>>>> parent of 7e51ff5 (Update index.html)
     }
-    await new Promise(r => setTimeout(r, 400));
+
+    loadBar.style.width = ((loaded + failed) / total * 100) + '%';
+    document.getElementById('status').textContent = 'Loading… ' + (loaded + failed) + '/' + total;
   }
+
+  if (allBounds.length) map.fitBounds(allBounds);
+  loadBar.style.width = '100%';
+  setTimeout(function() { loadBar.style.opacity = '0'; }, 600);
+  document.getElementById('status').textContent = loaded + ' datasets' + (failed ? ' · ' + failed + ' failed' : '');
+  updateCount();
 }
 
-async function loadCatalog() {
-  const statusEl = document.getElementById('status');
-  const listEl = document.getElementById('dataset-list');
-  statusEl.textContent = 'Fetching catalog...';
-  
-  try {
-    const res = await fetch('catalog/catalog_index.json?t=' + Date.now());
-    const entries = await res.json();
-    let loaded = 0, failed = 0;
+// ── SELECT ITEM ────────────────────────────────────────────────────────────
+function selectItem(item) {
+  if (activeItem) {
+    activeItem.row.classList.remove('active');
+    activeItem.layer.setStyle({ weight: 1.5, fillOpacity: 0.15 });
+  }
+  activeItem = item;
+  item.row.classList.add('active');
+  item.row.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  item.layer.setStyle({ weight: 2.5, fillOpacity: 0.35 });
+  map.fitBounds(item.layer.getBounds(), { padding: [60, 60] });
 
-    for (const entry of entries) {
-      const row = document.createElement('div');
-      row.className = 'dataset-item';
-      row.textContent = `⌛ ${entry.dataset_name}`;
-      listEl.appendChild(row);
+  var c = item.collect;
+  var detailRows = [
+    ['Dataset',      item.entry.dataset_name],
+    ['Location',     item.entry.location],
+    ['Date / time',  c.startAtUTC ? c.startAtUTC.slice(0,19).replace('T',' ') + ' UTC' : '—'],
+    ['Satellite',    item.json.umbraSatelliteName || '—'],
+    ['Imaging mode', item.json.imagingMode || '—'],
+    ['Polarisation', c.polarizations ? c.polarizations.join(', ') : '—'],
+    ['Track',        c.satelliteTrack || '—'],
+    ['Incidence',    c.angleIncidenceDegrees != null ? c.angleIncidenceDegrees.toFixed(4) + '°' : '—'],
+    ['Squint',       c.angleSquintDegrees    != null ? c.angleSquintDegrees.toFixed(4)    + '°' : '—'],
+    ['Az res.',      c.maxGroundResolution ? c.maxGroundResolution.azimuthMeters.toFixed(3) + ' m' : '—'],
+    ['Rng res.',     c.maxGroundResolution ? c.maxGroundResolution.rangeMeters.toFixed(3)   + ' m' : '—'],
+    ['UUID',         item.entry.uuid]
+  ];
+  document.getElementById('detail-rows').innerHTML = detailRows.map(function(r) {
+    return '<div class="detail-row"><span class="detail-key">' + r[0] + '</span><span class="detail-val">' + r[1] + '</span></div>';
+  }).join('');
 
-      // FIX: Ensure path is correctly constructed from root
-      const jsonPath = entry.json_saved.replace(/^\.\//, 'catalog/').replace(/\\/g, '/');
-      
-      try {
-        const r = await fetchWithRetry(jsonPath + '?t=' + Date.now());
-        const json = await r.json();
-        const collect = json.collects[0];
-        const latLngs = collect.footprintPolygonLla.coordinates[0].map(c => [c[1], c[0]]);
-        const layer = L.polygon(latLngs, { color: '#58a6ff', weight: 1, fillOpacity: 0.1 });
-        
-        const item = { entry, layer, json, row };
-        allItems.push(item);
-        row.innerHTML = `<div style="color:var(--muted)">${entry.location}</div><div>${entry.dataset_name}</div>`;
-        row.onclick = () => {
-          if (activeItem) activeItem.row.classList.remove('active');
-          activeItem = item;
-          row.classList.add('active');
-          map.fitBounds(layer.getBounds());
-          showDetails(item);
-        };
-        loaded++;
-      } catch (e) {
-        row.innerHTML = `<span style="color:var(--danger)">❌ ${entry.dataset_name}</span>`;
-        console.error(`Failed to load ${jsonPath}:`, e);
-        failed++;
-      }
-      statusEl.textContent = `Loaded ${loaded}/${entries.length} (${failed} failed)`;
-    }
-  } catch (e) { statusEl.textContent = 'Catalog Load Error'; }
-}
-
-function showDetails(item) {
+  var lb = document.getElementById('load-img-btn');
+  lb.disabled = false; lb.innerHTML = '&#9654; Load GEC image';
+  document.getElementById('remove-img-btn').style.display = 'none';
+  setImgStatus('');
   document.getElementById('detail-panel').classList.add('visible');
-  document.getElementById('detail-rows').innerHTML = `
-    <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
-      <span>SATELLITE</span><span>${item.json.umbraSatelliteName}</span>
-    </div>
-    <div style="display:flex; justify-content:space-between;">
-      <span>MODE</span><span>${item.json.imagingMode}</span>
-    </div>
-  `;
 }
 
-<<<<<<< HEAD
-document.getElementById('load-img-btn').onclick = async () => {
-=======
 document.getElementById('detail-close').addEventListener('click', function() {
   document.getElementById('detail-panel').classList.remove('visible');
   removeGecImage();
@@ -318,7 +368,7 @@ function updateCount() {
 document.getElementById('location-filter').addEventListener('change', filterItems);
 document.getElementById('search-input').addEventListener('input', filterItems);
 
-// ── GEC IMAGE LOADER — FIXED GDAL WORKFLOW ───────────────────────────────────
+// ── GEC IMAGE LOADER ───────────────────────────────────────────
 
 function buildGecUrl(item) {
   var prefix = item.entry.s3_prefix.replace('s3://umbra-open-data-catalog/', '').replace(/\\/g, '/');
@@ -336,6 +386,7 @@ function setImgStatus(msg, isError) {
 function removeGecImage() {
   if (gecImageLayer) { map.removeLayer(gecImageLayer); gecImageLayer = null; }
   document.getElementById('remove-img-btn').style.display = 'none';
+  document.getElementById('opacity-control').classList.remove('visible');
   var lb = document.getElementById('load-img-btn');
   lb.disabled = false; lb.innerHTML = '&#9654; Load GEC image';
   setImgStatus('');
@@ -343,50 +394,39 @@ function removeGecImage() {
 
 document.getElementById('remove-img-btn').addEventListener('click', removeGecImage);
 
-document.getElementById('load-img-btn').addEventListener('click', async function() {
->>>>>>> parent of 7e51ff5 (Update index.html)
-  if (!activeItem) return;
-  const status = document.getElementById('img-status');
-  const btn = document.getElementById('load-img-btn');
-  btn.disabled = true;
-  status.textContent = 'Processing GeoTIFF...';
+// Transparency Slider Event
+document.getElementById('opacity-slider').addEventListener('input', function(e) {
+  if (gecImageLayer) {
+    gecImageLayer.setOpacity(e.target.value);
+  }
+});
 
-  const prefix = activeItem.entry.s3_prefix.replace('s3://umbra-open-data-catalog/', '');
-  const url = `https://umbra-open-data-catalog.s3.us-west-2.amazonaws.com/${prefix}${encodeURIComponent(activeItem.entry.dataset_name)}_GEC.tif`;
+document.getElementById('load-img-btn').addEventListener('click', async function() {
+  if (!activeItem) return;
+  var item    = activeItem;
+  var loadBtn = document.getElementById('load-img-btn');
+  var remBtn  = document.getElementById('remove-img-btn');
+
+  removeGecImage();
+  loadBtn.disabled = true;
+  loadBtn.textContent = 'Loading…';
+
+  var url = buildGecUrl(item);
 
   try {
-    const Gdal = await initGdalJs({ path: 'https://cdn.jsdelivr.net/npm/gdal3.js@2.8.1/dist/package', useWorker: false });
-    const res = await fetch(url);
-    const tifFile = new File([await res.arrayBuffer()], 'input.tif');
-    const ds = (await Gdal.open([tifFile])).datasets[0];
+    setImgStatus('Initialising GDAL...');
+    var Gdal = await initGdalJs({
+      path: 'https://cdn.jsdelivr.net/npm/gdal3.js@2.8.1/dist/package',
+      useWorker: false
+    });
 
-    // Reproject and create PNG with dstnodata 0 (fixes black borders)
-    const warpedPath = await Gdal.gdalwarp(ds, ['-t_srs', 'EPSG:4326', '-of', 'GTiff']);
-    const warpedDs = (await Gdal.open([new File([await Gdal.getFileBytes(warpedPath)], 'w.tif')])).datasets[0];
-    const info = await Gdal.getInfo(warpedDs);
-    
-    const pngPath = await Gdal.gdal_translate(warpedDs, ['-of', 'PNG', '-scale', '-outsize', '1024', '0', '-dstnodata', '0']);
-    const pngBytes = await Gdal.getFileBytes(pngPath);
-    
-    const blobUrl = URL.createObjectURL(new Blob([pngBytes], { type: 'image/png' }));
-    const corners = info.corners;
-    const bounds = [[Math.min(...corners.map(c => c[1])), Math.min(...corners.map(c => c[0]))], 
-                    [Math.max(...corners.map(c => c[1])), Math.max(...corners.map(c => c[0]))]];
+    setImgStatus('Fetching GeoTIFF...');
+    var response = await fetch(url);
+    if (!response.ok) throw new Error('HTTP ' + response.status);
+    var tifFile = new File([await response.arrayBuffer()], 'input.tif', { type: 'image/tiff' });
 
-<<<<<<< HEAD
-    if (gecImageLayer) map.removeLayer(gecImageLayer);
-    gecImageLayer = L.imageOverlay(blobUrl, bounds, { opacity: 0.9 }).addTo(map);
-    document.getElementById('opacity-control').classList.add('visible');
-    document.getElementById('remove-img-btn').style.display = 'block';
-    status.textContent = 'GEC Loaded ✓';
-  } catch (e) { status.textContent = 'Load Failed'; console.error(e); }
-  btn.disabled = false;
-};
-=======
-    // 1. Open source file
     var srcDataset = (await Gdal.open([tifFile])).datasets[0];
 
-    // 2. gdalwarp to EPSG:4326
     setImgStatus('Warping to EPSG:4326...');
     var warpedPath = await Gdal.gdalwarp(srcDataset, [
       '-of', 'GTiff',
@@ -396,7 +436,6 @@ document.getElementById('load-img-btn').addEventListener('click', async function
     ]);
     await Gdal.close(srcDataset);
 
-    // 3. Open warped path to extract coordinates
     setImgStatus('Extracting metadata...');
     var warpedBytes = await Gdal.getFileBytes(warpedPath);
     var warpedFile = new File([warpedBytes], 'warped.tif');
@@ -410,41 +449,47 @@ document.getElementById('load-img-btn').addEventListener('click', async function
     var west   = Math.min.apply(null, allLng), east  = Math.max.apply(null, allLng);
     var south  = Math.min.apply(null, allLat), north = Math.max.apply(null, allLat);
 
-    // 4. gdal_translate to PNG
     setImgStatus('Converting to PNG...');
+    // '-dstnodata 0' removes the black padding by making pixel value 0 transparent
     var pngPath = await Gdal.gdal_translate(warpedDsObj, [
       '-of', 'PNG',
       '-ot', 'Byte',
       '-scale',
-      '-outsize', '1024', '0'
+      '-outsize', '1024', '0',
+      '-dstnodata', '0'
     ]);
     await Gdal.close(warpedDsObj);
 
-    // 5. Render to Leaflet
     setImgStatus('Rendering...');
     var pngBytes = await Gdal.getFileBytes(pngPath);
     var blob    = new Blob([pngBytes], { type: 'image/png' });
     var blobUrl = URL.createObjectURL(blob);
     var bounds  = L.latLngBounds([[south, west], [north, east]]);
 
-    gecImageLayer = L.imageOverlay(blobUrl, bounds, { opacity: 0.9, interactive: false });
+    var initialOpacity = document.getElementById('opacity-slider').value;
+    gecImageLayer = L.imageOverlay(blobUrl, bounds, { opacity: initialOpacity, interactive: false });
     gecImageLayer.addTo(map);
     map.fitBounds(item.layer.getBounds(), { padding: [40, 40] });
 
     remBtn.style.display = 'inline-block';
+    document.getElementById('opacity-control').classList.add('visible');
     loadBtn.disabled     = false;
     loadBtn.innerHTML    = '&#9654; Reload GEC image';
     setImgStatus('GEC loaded ✓');
->>>>>>> parent of 7e51ff5 (Update index.html)
 
-document.getElementById('opacity-slider').oninput = (e) => gecImageLayer && gecImageLayer.setOpacity(e.target.value);
-document.getElementById('remove-img-btn').onclick = () => {
-  if (gecImageLayer) map.removeLayer(gecImageLayer);
-  document.getElementById('opacity-control').classList.remove('visible');
-  document.getElementById('remove-img-btn').style.display = 'none';
-};
+  } catch(e) {
+    console.error('GEC load error:', e);
+    loadBtn.disabled  = false;
+    loadBtn.innerHTML = '&#9654; Load GEC image';
+    setImgStatus('Failed: ' + (e.message || String(e)), true);
+  }
+});
 
-loadCatalog();
+// ── INIT ───────────────────────────────────────────────────────────────────
+loadCatalog().catch(function(e) {
+  document.getElementById('status').textContent = 'Error loading catalog';
+  console.error(e);
+});
 </script>
 </body>
 </html>
