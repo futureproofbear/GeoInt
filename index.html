@@ -471,9 +471,10 @@
     let loaded = 0, failed = 0, cbIdx = 0;
 
     for (const entry of entries) {
-      const relPath = encodeURI(
-        entry.json_saved.replace(/\\/g, '/').replace(/^\.\//, '')
-      );
+      const relPath = entry.json_saved.replace(/\\/g, '/').replace(/^\.\//, '')
+        .split('/')
+        .map(function(seg) { return encodeURIComponent(seg); })
+        .join('/');
 
       const row = document.createElement('div');
       row.className = 'dataset-item';
