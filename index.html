@@ -121,7 +121,6 @@
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
-<!-- gdal3.js — GDAL compiled to WebAssembly. Loads its own WASM + data files from jsDelivr. -->
 <script src="https://cdn.jsdelivr.net/npm/gdal3.js@2.8.1/dist/package/gdal3.js"></script>
 
 <script>
@@ -145,9 +144,6 @@ document.getElementById('map-mode-btn').addEventListener('click', function() {
   currentMode = next;
   this.innerHTML = next === 'night' ? '&#9728; Day' : '&#9790; Night';
 });
-
-// ── GDAL INIT ──────────────────────────────────────────────────────────────
-// Initialise gdal3.js once at startup — loads WASM (~10 MB) in the background
 
 // ── STATE ──────────────────────────────────────────────────────────────────
 var COLORS = ['#58a6ff','#3fb950','#f78166','#d2a8ff','#ffa657'];
@@ -250,7 +246,7 @@ async function loadCatalog() {
         var item = { entry: entry, layer: layer, collect: collect, json: json, row: row, checkbox: checkbox };
         allItems.push(item);
         checkbox.addEventListener('change', function() {
-          if (checkbox.checked) map.addLayer(layer); else map.removeLayer(layer);
+          if (checkbox.checked) map.addLayer(layer); else map.removeLayer(i.layer);
           updateCount();
         });
         row.querySelector('.item-body').addEventListener('click', function() {
@@ -355,19 +351,10 @@ function updateCount() {
 document.getElementById('location-filter').addEventListener('change', filterItems);
 document.getElementById('search-input').addEventListener('input', filterItems);
 
-// ── GEC IMAGE LOADER — uses GDAL (gdal3.js / WebAssembly) ──────────────────
-// Workflow:
-//   1. Fetch GEC GeoTIFF bytes from Umbra S3
-//   2. Write bytes into GDAL's virtual filesystem (/vsimem/)
-//   3. Use gdal_translate to warp to EPSG:4326 and convert to PNG
-//   4. Read output PNG bytes → blob URL → Leaflet ImageOverlay
-//   5. Get geographic bounds from GDAL dataset info for correct placement
-//   6. Clean up GDAL virtual files
+// ── GEC IMAGE LOADER — FIXED GDAL WORKFLOW ───────────────────────────────────
 
 function buildGecUrl(item) {
-  var prefix = item.entry.s3_prefix
-    .replace('s3://umbra-open-data-catalog/', '')
-    .replace(/\\/g, '/');
+  var prefix = item.entry.s3_prefix.replace('s3://umbra-open-data-catalog/', '').replace(/\\/g, '/');
   var enc = prefix.split('/').map(function(s) { return encodeURIComponent(s); }).join('/');
   return 'https://umbra-open-data-catalog.s3.us-west-2.amazonaws.com/' +
          enc + encodeURIComponent(item.entry.dataset_name) + '_GEC.tif';
@@ -391,7 +378,7 @@ document.getElementById('remove-img-btn').addEventListener('click', removeGecIma
 
 document.getElementById('load-img-btn').addEventListener('click', async function() {
   if (!activeItem) return;
-  var item    = activeItem;
+  var item = activeItem;
   var loadBtn = document.getElementById('load-img-btn');
   var remBtn  = document.getElementById('remove-img-btn');
 
@@ -400,64 +387,60 @@ document.getElementById('load-img-btn').addEventListener('click', async function
   loadBtn.textContent = 'Loading…';
 
   var url = buildGecUrl(item);
-  console.log('GEC URL:', url);
-
 
   try {
-    // 1. Init GDAL WASM
     setImgStatus('Initialising GDAL...');
     var Gdal = await initGdalJs({
       path: 'https://cdn.jsdelivr.net/npm/gdal3.js@2.8.1/dist/package',
       useWorker: false
     });
 
-    // 2. Fetch GeoTIFF and open with GDAL
     setImgStatus('Fetching GeoTIFF...');
     var response = await fetch(url);
     if (!response.ok) throw new Error('HTTP ' + response.status);
-    var tifFile = new File([await response.arrayBuffer()], 'input.tif', { type: 'image/tiff' });
-    console.log('Fetched', tifFile.size, 'bytes');
+    var buffer = await response.arrayBuffer();
+    var tifFile = new File([buffer], 'input.tif', { type: 'image/tiff' });
 
+    // 1. Open source file
     var srcDataset = (await Gdal.open([tifFile])).datasets[0];
-    var srcInfo    = await Gdal.getInfo(srcDataset);
-    console.log('Source info:', JSON.stringify(srcInfo));
 
-    // 3. gdalwarp: returns a path string, e.g., "/vsimem/output.tif"
+    // 2. gdalwarp to EPSG:4326
     setImgStatus('Warping to EPSG:4326...');
     var warpedPath = await Gdal.gdalwarp(srcDataset, [
       '-of', 'GTiff',
       '-t_srs', 'EPSG:4326',
-      '-r', 'bilinear'
+      '-r', 'bilinear',
+      '-overwrite'
     ]);
     await Gdal.close(srcDataset);
 
-    // 4. Open the warped file path using Gdal.open
-    // Note: We pass the path string in the array
-    var warpedDatasetObj = (await Gdal.open([warpedPath])).datasets[0];
-    var warpedInfo = await Gdal.getInfo(warpedDatasetObj);
+    // 3. Open warped path to extract coordinates
+    setImgStatus('Extracting metadata...');
+    var warpedBytes = await Gdal.getFileBytes(warpedPath);
+    var warpedFile = new File([warpedBytes], 'warped.tif');
+    var warpedContainer = await Gdal.open([warpedFile]);
+    var warpedDsObj = warpedContainer.datasets[0];
+    var warpedInfo = await Gdal.getInfo(warpedDsObj);
 
-    var wc     = warpedInfo.corners;  // [[lng,lat], ...] now in EPSG:4326
+    var wc     = warpedInfo.corners;
     var allLng = wc.map(function(c) { return c[0]; });
     var allLat = wc.map(function(c) { return c[1]; });
     var west   = Math.min.apply(null, allLng), east  = Math.max.apply(null, allLng);
     var south  = Math.min.apply(null, allLat), north = Math.max.apply(null, allLat);
-    console.log('WGS84 bounds:', west, south, east, north);
 
-    // 5. gdal_translate
+    // 4. gdal_translate to PNG
     setImgStatus('Converting to PNG...');
-    var pngPath = await Gdal.gdal_translate(warpedDatasetObj, [
+    var pngPath = await Gdal.gdal_translate(warpedDsObj, [
       '-of', 'PNG',
       '-ot', 'Byte',
       '-scale',
       '-outsize', '1024', '0'
     ]);
-    await Gdal.close(warpedDatasetObj);
+    await Gdal.close(warpedDsObj);
 
-    // 6. Read bytes using the path returned
-    var pngBytes = await Gdal.getFileBytes(pngPath); 
-    // Note: getFileBytes often accepts the path string directly
-
-    // 7. Create blob URL and add Leaflet ImageOverlay
+    // 5. Render to Leaflet
+    setImgStatus('Rendering...');
+    var pngBytes = await Gdal.getFileBytes(pngPath);
     var blob    = new Blob([pngBytes], { type: 'image/png' });
     var blobUrl = URL.createObjectURL(blob);
     var bounds  = L.latLngBounds([[south, west], [north, east]]);
@@ -475,7 +458,7 @@ document.getElementById('load-img-btn').addEventListener('click', async function
     console.error('GEC load error:', e);
     loadBtn.disabled  = false;
     loadBtn.innerHTML = '&#9654; Load GEC image';
-    setImgStatus('Failed: ' + (e.message || String(e)), true);
+    setImgStatus('Error: ' + (e.message || String(e)), true);
   }
 });
 
