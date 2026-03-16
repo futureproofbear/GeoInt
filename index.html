@@ -18,6 +18,7 @@
       --text:      #e6edf3;
       --muted:     #8b949e;
       --danger:    #f85149;
+      --warn:      #ffa657;
       --sidebar-w: 300px;
     }
 
@@ -39,9 +40,10 @@
       display: flex;
       align-items: center;
       padding: 0 16px;
-      gap: 12px;
+      gap: 10px;
       flex-shrink: 0;
       z-index: 1000;
+      position: relative;
     }
     #header h1 {
       font-family: 'IBM Plex Mono', monospace;
@@ -52,12 +54,12 @@
       text-transform: uppercase;
     }
     #status {
-      font-size: 12px;
+      font-size: 11px;
       color: var(--muted);
       font-family: 'IBM Plex Mono', monospace;
       margin-left: auto;
     }
-    #toggle-sidebar {
+    .hdr-btn {
       background: none;
       border: 1px solid var(--border);
       color: var(--muted);
@@ -67,15 +69,18 @@
       font-size: 12px;
       font-family: 'IBM Plex Mono', monospace;
       transition: all 0.15s;
+      white-space: nowrap;
     }
-    #toggle-sidebar:hover { border-color: var(--accent); color: var(--accent); }
+    .hdr-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .hdr-btn.reload:hover { border-color: var(--accent2); color: var(--accent2); }
+    .hdr-btn.reload.spinning {
+      color: var(--accent2); border-color: var(--accent2);
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
 
-    /* ── MAIN LAYOUT ── */
-    #body {
-      display: flex;
-      flex: 1;
-      overflow: hidden;
-    }
+    /* ── LAYOUT ── */
+    #body { display: flex; flex: 1; overflow: hidden; }
 
     /* ── SIDEBAR ── */
     #sidebar {
@@ -91,7 +96,7 @@
     #sidebar.collapsed { width: 0; opacity: 0; pointer-events: none; }
 
     #sidebar-header {
-      padding: 12px 14px 8px;
+      padding: 10px 14px 8px;
       border-bottom: 1px solid var(--border);
       flex-shrink: 0;
     }
@@ -103,7 +108,6 @@
       letter-spacing: 0.1em;
       margin-bottom: 8px;
     }
-
     #location-filter {
       width: 100%;
       background: var(--bg);
@@ -113,12 +117,11 @@
       font-family: 'IBM Plex Sans', sans-serif;
       padding: 6px 8px;
       border-radius: 4px;
-      margin-bottom: 8px;
+      margin-bottom: 6px;
       appearance: none;
       cursor: pointer;
     }
     #location-filter:focus { outline: none; border-color: var(--accent); }
-
     #search-input {
       width: 100%;
       background: var(--bg);
@@ -132,56 +135,92 @@
     #search-input::placeholder { color: var(--muted); }
     #search-input:focus { outline: none; border-color: var(--accent); }
 
-    #dataset-count {
-      font-size: 11px;
-      color: var(--muted);
-      font-family: 'IBM Plex Mono', monospace;
+    /* bulk row */
+    #bulk-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
       padding: 6px 14px;
       border-bottom: 1px solid var(--border);
       flex-shrink: 0;
     }
-
-    #dataset-list {
-      flex: 1;
-      overflow-y: auto;
-      overflow-x: hidden;
+    .bulk-btn {
+      font-size: 10px;
+      font-family: 'IBM Plex Mono', monospace;
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      padding: 2px 7px;
+      border-radius: 3px;
+      cursor: pointer;
+      transition: all 0.12s;
     }
+    .bulk-btn:hover { border-color: var(--accent); color: var(--accent); }
+    #dataset-count {
+      font-size: 11px;
+      color: var(--muted);
+      font-family: 'IBM Plex Mono', monospace;
+      margin-left: auto;
+    }
+
+    /* list */
+    #dataset-list { flex: 1; overflow-y: auto; overflow-x: hidden; }
     #dataset-list::-webkit-scrollbar { width: 4px; }
     #dataset-list::-webkit-scrollbar-track { background: transparent; }
     #dataset-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
 
     .dataset-item {
-      padding: 10px 14px;
+      padding: 9px 14px 9px 10px;
       border-bottom: 1px solid rgba(48,54,61,0.5);
-      cursor: pointer;
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
       transition: background 0.1s;
-      position: relative;
     }
-    .dataset-item:hover { background: rgba(88,166,255,0.05); }
-    .dataset-item.active { background: rgba(88,166,255,0.1); border-left: 2px solid var(--accent); }
-    .dataset-item.active .item-name { color: var(--accent); }
+    .dataset-item:hover { background: rgba(88,166,255,0.04); }
+    .dataset-item.active { background: rgba(88,166,255,0.09); border-left: 2px solid var(--accent); padding-left: 8px; }
 
+    /* custom checkbox */
+    .item-check-wrap { flex-shrink: 0; margin-top: 2px; }
+    .item-check-wrap input[type=checkbox] { display: none; }
+    .item-check-wrap label {
+      display: block;
+      width: 14px; height: 14px;
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      cursor: pointer;
+      position: relative;
+      transition: border-color 0.12s, background 0.12s;
+    }
+    .item-check-wrap input:checked + label { background: var(--accent); border-color: var(--accent); }
+    .item-check-wrap input:checked + label::after {
+      content: '';
+      position: absolute;
+      left: 3px; top: 1px;
+      width: 5px; height: 8px;
+      border: 2px solid #fff;
+      border-top: none; border-left: none;
+      transform: rotate(40deg);
+    }
+
+    .item-body { flex: 1; cursor: pointer; min-width: 0; }
     .item-location {
       font-size: 10px;
       font-family: 'IBM Plex Mono', monospace;
       color: var(--muted);
       text-transform: uppercase;
       letter-spacing: 0.08em;
-      margin-bottom: 3px;
+      margin-bottom: 2px;
     }
     .item-name {
-      font-size: 12px;
+      font-size: 11px;
       font-family: 'IBM Plex Mono', monospace;
       color: var(--text);
       line-height: 1.4;
       word-break: break-all;
     }
-    .item-meta {
-      display: flex;
-      gap: 8px;
-      margin-top: 5px;
-      flex-wrap: wrap;
-    }
+    .dataset-item.active .item-name { color: var(--accent); }
+    .item-meta { display: flex; gap: 6px; margin-top: 4px; flex-wrap: wrap; }
     .item-tag {
       font-size: 10px;
       font-family: 'IBM Plex Mono', monospace;
@@ -192,7 +231,6 @@
     }
     .item-tag.band { border-color: #3fb95040; color: var(--accent2); background: #3fb95010; }
     .item-tag.sat  { border-color: #58a6ff40; color: var(--accent);  background: #58a6ff10; }
-    .item-tag.date { color: var(--muted); }
 
     .item-loading {
       font-size: 11px;
@@ -201,19 +239,19 @@
       padding: 8px 14px;
       opacity: 0.6;
     }
-    .item-error { color: var(--danger); opacity: 0.7; }
+    .item-error { color: var(--danger) !important; opacity: 0.8; }
 
-    /* ── MAP ── */
+    /* map */
     #map { flex: 1; }
 
-    /* ── DETAIL PANEL (bottom of sidebar) ── */
+    /* detail panel */
     #detail-panel {
       border-top: 1px solid var(--border);
       background: var(--bg);
-      padding: 12px 14px;
+      padding: 10px 14px;
       flex-shrink: 0;
       display: none;
-      max-height: 220px;
+      max-height: 210px;
       overflow-y: auto;
     }
     #detail-panel.visible { display: block; }
@@ -223,8 +261,13 @@
       color: var(--accent);
       text-transform: uppercase;
       letter-spacing: 0.08em;
-      margin-bottom: 8px;
+      margin-bottom: 6px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
     }
+    #detail-close { cursor: pointer; color: var(--muted); font-size: 14px; line-height: 1; }
+    #detail-close:hover { color: var(--text); }
     .detail-row {
       display: flex;
       justify-content: space-between;
@@ -235,9 +278,9 @@
     }
     .detail-row:last-child { border-bottom: none; }
     .detail-key { color: var(--muted); }
-    .detail-val { color: var(--text); text-align: right; max-width: 55%; word-break: break-word; }
+    .detail-val { color: var(--text); text-align: right; max-width: 58%; word-break: break-all; }
 
-    /* loading bar */
+    /* load bar */
     #load-bar {
       position: absolute;
       bottom: 0; left: 0;
@@ -253,7 +296,8 @@
 
 <div id="header">
   <h1>GeoInt Catalog</h1>
-  <button id="toggle-sidebar">&#9776; Datasets</button>
+  <button class="hdr-btn" id="toggle-sidebar">&#9776; Datasets</button>
+  <button class="hdr-btn reload" id="reload-btn" title="Reload catalog from source">&#8635; Reload</button>
   <span id="status">Loading…</span>
   <div id="load-bar"></div>
 </div>
@@ -265,209 +309,244 @@
       <select id="location-filter"><option value="">All locations</option></select>
       <input id="search-input" type="text" placeholder="Search dataset name…" />
     </div>
-    <div id="dataset-count">—</div>
+    <div id="bulk-row">
+      <button class="bulk-btn" id="check-all">Check all</button>
+      <button class="bulk-btn" id="uncheck-all">Uncheck all</button>
+      <span id="dataset-count">—</span>
+    </div>
     <div id="dataset-list"></div>
     <div id="detail-panel">
-      <h3>Collect Details</h3>
+      <h3>Collect details <span id="detail-close" title="Close">✕</span></h3>
       <div id="detail-rows"></div>
     </div>
   </div>
-
   <div id="map"></div>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script>
-  // ── MAP SETUP ──
   const map = L.map('map', { zoomControl: true }).setView([0, 0], 2);
-
   L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
     attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> © <a href="https://carto.com/">CARTO</a>',
     maxZoom: 19
   }).addTo(map);
 
-  // ── STATE ──
   const COLORS = ['#58a6ff','#3fb950','#f78166','#d2a8ff','#ffa657'];
   const locationColors = {};
   let colorIdx = 0;
-
-  function getColor(location) {
-    if (!locationColors[location]) locationColors[location] = COLORS[colorIdx++ % COLORS.length];
-    return locationColors[location];
+  function getColor(loc) {
+    if (!locationColors[loc]) locationColors[loc] = COLORS[colorIdx++ % COLORS.length];
+    return locationColors[loc];
   }
 
-  // each entry: { entry, layer, collectData }
-  const allItems = [];
+  let allItems = [];
   let activeItem = null;
 
-  // ── SIDEBAR TOGGLE ──
+  // sidebar toggle
   document.getElementById('toggle-sidebar').addEventListener('click', () => {
     document.getElementById('sidebar').classList.toggle('collapsed');
     setTimeout(() => map.invalidateSize(), 220);
   });
 
-  // ── LOAD ──
+  // reload button
+  document.getElementById('reload-btn').addEventListener('click', async () => {
+    const btn = document.getElementById('reload-btn');
+    btn.classList.add('spinning');
+    btn.disabled = true;
+
+    allItems.forEach(item => { if (map.hasLayer(item.layer)) map.removeLayer(item.layer); });
+    allItems = [];
+    activeItem = null;
+    document.getElementById('dataset-list').innerHTML = '';
+    document.getElementById('detail-panel').classList.remove('visible');
+    document.getElementById('load-bar').style.cssText = 'opacity:1;width:0%';
+    document.getElementById('location-filter').value = '';
+    document.getElementById('search-input').value = '';
+
+    try { await loadCatalog(); }
+    catch(e) { document.getElementById('status').textContent = 'Reload failed'; console.error(e); }
+
+    btn.classList.remove('spinning');
+    btn.disabled = false;
+  });
+
   async function loadCatalog() {
-    const res = await fetch('catalog/catalog_index.json');
+    const res = await fetch('catalog/catalog_index.json?t=' + Date.now());
     const entries = await res.json();
     const total = entries.length;
 
-    // populate location filter
-    const locations = [...new Set(entries.map(e => e.location))].sort();
+    // rebuild location options
     const sel = document.getElementById('location-filter');
-    locations.forEach(loc => {
-      const opt = document.createElement('option');
-      opt.value = loc; opt.textContent = loc;
-      sel.appendChild(opt);
+    while (sel.options.length > 1) sel.remove(1);
+    [...new Set(entries.map(e => e.location))].sort().forEach(loc => {
+      const o = document.createElement('option');
+      o.value = loc; o.textContent = loc;
+      sel.appendChild(o);
     });
 
-    const listEl = document.getElementById('dataset-list');
+    const listEl  = document.getElementById('dataset-list');
     const loadBar = document.getElementById('load-bar');
     const allBounds = [];
-    let loaded = 0, failed = 0;
+    let loaded = 0, failed = 0, cbIdx = 0;
 
     for (const entry of entries) {
-      const relPath = encodeURI(
-        entry.json_saved.replace(/\\/g, '/').replace(/^\.\//, '')
-      );
+      const relPath = encodeURI(entry.json_saved.replace(/\\/g,'/').replace(/^\.\//,''));
 
-      // placeholder row while loading
       const row = document.createElement('div');
       row.className = 'dataset-item';
       row.innerHTML = `<div class="item-loading">⏳ ${entry.dataset_name}</div>`;
       listEl.appendChild(row);
 
       try {
-        const r = await fetch(relPath);
+        const r = await fetch(relPath + '?t=' + Date.now());
         if (!r.ok) throw new Error(r.status);
         const json = await r.json();
         const collect = json.collects?.[0];
-
         if (!collect?.footprintPolygonLla) throw new Error('no footprint');
 
-        const coords = collect.footprintPolygonLla.coordinates[0];
-        const latLngs = coords.map(c => [c[1], c[0]]);
-        const color = getColor(entry.location);
-
-        const layer = L.polygon(latLngs, {
-          color, weight: 1.5, fillColor: color, fillOpacity: 0.12
-        }).addTo(map);
+        const latLngs = collect.footprintPolygonLla.coordinates[0].map(c => [c[1], c[0]]);
+        const color   = getColor(entry.location);
+        const layer   = L.polygon(latLngs, { color, weight: 1.5, fillColor: color, fillOpacity: 0.15 });
+        // NOT added to map — checkbox controls visibility
 
         allBounds.push(...latLngs);
 
-        const item = { entry, layer, collect, json };
-        allItems.push(item);
-
-        // build sidebar row
-        const date = collect.startAtUTC
-          ? collect.startAtUTC.slice(0, 10)
-          : '—';
-        const sat = json.umbraSatelliteName || '—';
+        const date = collect.startAtUTC ? collect.startAtUTC.slice(0,10) : '—';
+        const sat  = json.umbraSatelliteName || '—';
         const band = collect.radarBand || '—';
+        const cbId = 'cb-' + (cbIdx++);
 
         row.innerHTML = `
-          <div class="item-location">${entry.location}</div>
-          <div class="item-name">${entry.dataset_name}</div>
-          <div class="item-meta">
-            <span class="item-tag date">${date}</span>
-            <span class="item-tag sat">${sat}</span>
-            <span class="item-tag band">Band ${band}</span>
+          <div class="item-check-wrap">
+            <input type="checkbox" id="${cbId}">
+            <label for="${cbId}" style="border-color:${color}"></label>
+          </div>
+          <div class="item-body">
+            <div class="item-location">${entry.location}</div>
+            <div class="item-name">${entry.dataset_name}</div>
+            <div class="item-meta">
+              <span class="item-tag date">${date}</span>
+              <span class="item-tag sat">${sat}</span>
+              <span class="item-tag band">Band ${band}</span>
+            </div>
           </div>`;
 
-        row.addEventListener('click', () => selectItem(item, row));
+        const checkbox = row.querySelector('input[type=checkbox]');
+        const item = { entry, layer, collect, json, row, checkbox };
+        allItems.push(item);
 
-        layer.on('click', () => selectItem(item, row));
+        // checkbox: toggle footprint
+        checkbox.addEventListener('change', () => {
+          checkbox.checked ? map.addLayer(layer) : map.removeLayer(layer);
+          updateCount();
+        });
+
+        // row body: click to select + auto-check
+        row.querySelector('.item-body').addEventListener('click', () => {
+          if (!checkbox.checked) {
+            checkbox.checked = true;
+            map.addLayer(layer);
+            updateCount();
+          }
+          selectItem(item);
+        });
+
+        // polygon click
+        layer.on('click', () => selectItem(item));
 
         loaded++;
-      } catch (e) {
+      } catch(e) {
         row.innerHTML = `<div class="item-loading item-error">✗ ${entry.dataset_name}</div>`;
         failed++;
       }
 
-      const done = loaded + failed;
-      loadBar.style.width = (done / total * 100) + '%';
-      document.getElementById('status').textContent =
-        `Loading… ${done}/${total}`;
+      loadBar.style.width = ((loaded + failed) / total * 100) + '%';
+      document.getElementById('status').textContent = `Loading… ${loaded + failed}/${total}`;
     }
 
     if (allBounds.length) map.fitBounds(allBounds);
     loadBar.style.width = '100%';
-    setTimeout(() => loadBar.style.opacity = '0', 600);
+    setTimeout(() => { loadBar.style.opacity = '0'; }, 600);
 
     document.getElementById('status').textContent =
-      `${loaded} datasets · ${allItems.length} footprints` +
-      (failed ? ` · ${failed} failed` : '');
-
+      `${loaded} datasets` + (failed ? ` · ${failed} failed` : '');
     updateCount();
   }
 
-  // ── SELECT ITEM ──
-  function selectItem(item, row) {
-    // deselect previous
+  function selectItem(item) {
     if (activeItem) {
       activeItem.row.classList.remove('active');
-      activeItem.item.layer.setStyle({
-        weight: 1.5, fillOpacity: 0.12
-      });
+      activeItem.layer.setStyle({ weight: 1.5, fillOpacity: 0.15 });
     }
-
-    activeItem = { item, row };
-    row.classList.add('active');
-    row.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-
-    item.layer.setStyle({ weight: 2.5, fillOpacity: 0.3 });
+    activeItem = item;
+    item.row.classList.add('active');
+    item.row.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    item.layer.setStyle({ weight: 2.5, fillOpacity: 0.35 });
     map.fitBounds(item.layer.getBounds(), { padding: [60, 60] });
 
-    // populate detail panel
     const c = item.collect;
     const rows = [
-      ['Dataset',    item.entry.dataset_name],
-      ['Location',   item.entry.location],
-      ['Date',       c.startAtUTC?.slice(0,19).replace('T',' ') || '—'],
-      ['Satellite',  item.json.umbraSatelliteName || '—'],
-      ['Radar band', c.radarBand || '—'],
-      ['Polariz.',   c.polarizations?.join(', ') || '—'],
-      ['Track',      c.satelliteTrack || '—'],
-      ['Incidence',  c.angleIncidenceDegrees != null ? c.angleIncidenceDegrees.toFixed(2) + '°' : '—'],
-      ['Az res.',    c.maxGroundResolution ? c.maxGroundResolution.azimuthMeters.toFixed(3) + ' m' : '—'],
-      ['Rng res.',   c.maxGroundResolution ? c.maxGroundResolution.rangeMeters.toFixed(3) + ' m' : '—'],
-      ['UUID',       item.entry.uuid],
+      ['Dataset',      item.entry.dataset_name],
+      ['Location',     item.entry.location],
+      ['Date / time',  c.startAtUTC ? c.startAtUTC.slice(0,19).replace('T',' ') + ' UTC' : '—'],
+      ['Satellite',    item.json.umbraSatelliteName || '—'],
+      ['Imaging mode', item.json.imagingMode || '—'],
+      ['Polarisation', c.polarizations?.join(', ') || '—'],
+      ['Track',        c.satelliteTrack || '—'],
+      ['Incidence',    c.angleIncidenceDegrees != null ? c.angleIncidenceDegrees.toFixed(4)+'°' : '—'],
+      ['Squint',       c.angleSquintDegrees    != null ? c.angleSquintDegrees.toFixed(4)+'°'    : '—'],
+      ['Az res.',      c.maxGroundResolution ? c.maxGroundResolution.azimuthMeters.toFixed(3)+' m' : '—'],
+      ['Rng res.',     c.maxGroundResolution ? c.maxGroundResolution.rangeMeters.toFixed(3)+' m'   : '—'],
+      ['UUID',         item.entry.uuid],
     ];
-
     document.getElementById('detail-rows').innerHTML = rows.map(([k,v]) =>
       `<div class="detail-row"><span class="detail-key">${k}</span><span class="detail-val">${v}</span></div>`
     ).join('');
-
     document.getElementById('detail-panel').classList.add('visible');
   }
 
-  // ── FILTER + SEARCH ──
+  document.getElementById('detail-close').addEventListener('click', () => {
+    document.getElementById('detail-panel').classList.remove('visible');
+    if (activeItem) {
+      activeItem.row.classList.remove('active');
+      activeItem.layer.setStyle({ weight: 1.5, fillOpacity: 0.15 });
+      activeItem = null;
+    }
+  });
+
+  function visibleItems() {
+    return allItems.filter(i => i.row.style.display !== 'none');
+  }
+
+  document.getElementById('check-all').addEventListener('click', () => {
+    visibleItems().forEach(i => { if (!i.checkbox.checked) { i.checkbox.checked = true; map.addLayer(i.layer); } });
+    updateCount();
+  });
+
+  document.getElementById('uncheck-all').addEventListener('click', () => {
+    visibleItems().forEach(i => { if (i.checkbox.checked) { i.checkbox.checked = false; map.removeLayer(i.layer); } });
+    updateCount();
+  });
+
   function filterItems() {
     const loc = document.getElementById('location-filter').value;
     const q   = document.getElementById('search-input').value.toLowerCase();
-    let visible = 0;
-
-    document.querySelectorAll('.dataset-item').forEach((row, i) => {
-      const item = allItems[i];
-      if (!item) return;
-
-      const matchLoc  = !loc || item.entry.location === loc;
-      const matchSearch = !q  || item.entry.dataset_name.toLowerCase().includes(q);
-      const show = matchLoc && matchSearch;
-
-      row.style.display = show ? '' : 'none';
-      if (show) { map.addLayer(item.layer); visible++; }
-      else map.removeLayer(item.layer);
+    allItems.forEach(i => {
+      const show = (!loc || i.entry.location === loc) && (!q || i.entry.dataset_name.toLowerCase().includes(q));
+      i.row.style.display = show ? '' : 'none';
+      if (!show && i.checkbox.checked) map.removeLayer(i.layer);
+      if ( show && i.checkbox.checked) map.addLayer(i.layer);
     });
-
-    updateCount(visible);
+    updateCount();
   }
 
-  function updateCount(n) {
-    const total = allItems.length;
-    const shown = n !== undefined ? n : total;
-    document.getElementById('dataset-count').textContent =
-      shown === total ? `${total} datasets` : `${shown} / ${total} datasets`;
+  function updateCount() {
+    const vis     = visibleItems().length;
+    const checked = visibleItems().filter(i => i.checkbox.checked).length;
+    const total   = allItems.length;
+    let txt = vis === total ? `${total} datasets` : `${vis}/${total}`;
+    if (checked > 0) txt += ` · ${checked} shown`;
+    document.getElementById('dataset-count').textContent = txt;
   }
 
   document.getElementById('location-filter').addEventListener('change', filterItems);
