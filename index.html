@@ -694,11 +694,24 @@
     console.log('GEC URL:', url);
 
     try {
-      // Fetch as ArrayBuffer — avoids .ovr sidecar requests from georaster
+      // Fetch as ArrayBuffer
       var response = await fetch(url);
       if (!response.ok) throw new Error('HTTP ' + response.status + ' — check S3 URL');
       var arrayBuffer = await response.arrayBuffer();
-      var georaster = await parseGeoraster(arrayBuffer);
+
+      // Intercept .ovr sidecar fetch — georaster internally tries to fetch url+'.ovr'
+      // which doesn't exist on Umbra's S3. Suppress it silently.
+      var _origFetch = window.fetch;
+      window.fetch = function(input) {
+        var u = (typeof input === 'string') ? input : (input.url || String(input));
+        if (u.indexOf('.ovr') !== -1) {
+          return Promise.reject(new Error('ovr suppressed'));
+        }
+        return _origFetch.apply(this, arguments);
+      };
+      var georaster = await parseGeoraster(arrayBuffer).finally(function() {
+        window.fetch = _origFetch;
+      });
 
       console.log('EPSG:', georaster.projection);
       console.log('Native bounds:', georaster.xmin, georaster.ymin, georaster.xmax, georaster.ymax);
