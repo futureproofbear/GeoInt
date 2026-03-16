@@ -456,7 +456,7 @@ document.getElementById('load-img-btn').addEventListener('click', async function
       '-ot', 'Byte',
       '-scale',
       '-outsize', '1024', '0',
-      '-dstnodata', '0'
+      '-a_nodata', '0'
     ]);
     await Gdal.close(warpedDsObj);
 
