@@ -57,7 +57,7 @@
     .item-tag.band { border-color:#3fb95040; color:var(--accent2); background:#3fb95010; }
     .item-tag.sat  { border-color:#58a6ff40; color:var(--accent);  background:#58a6ff10; }
     .item-loading { font-size:11px; font-family:'IBM Plex Mono',monospace; color:var(--muted); padding:8px 14px; opacity:0.6; }
-    .item-error { color:var(--danger) !important; opacity:0.8; }
+    .item-error { color:var(--danger) !important; opacity:0.8; font-size:10px; }
     #map { flex:1; position: relative; }
     #detail-panel { border-top:1px solid var(--border); background:var(--bg); flex-shrink:0; display:none; flex-direction:column; max-height:310px; }
     #detail-panel.visible { display:flex; }
@@ -81,7 +81,7 @@
     .img-btn.remove:hover { background:#f8514915; border-color:var(--danger); }
     #img-status { font-size:10px; font-family:'IBM Plex Mono',monospace; color:var(--muted); }
 
-    /* Opacity Control Styles */
+    /* Transparency Slider */
     #opacity-control {
       position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
       background: var(--surface); border: 1px solid var(--border);
@@ -100,7 +100,7 @@
   <button class="hdr-btn" id="toggle-sidebar">&#9776; Datasets</button>
   <button class="hdr-btn reload" id="reload-btn">&#8635; Reload</button>
   <button class="hdr-btn" id="map-mode-btn">&#9790; Night</button>
-  <span id="status">Loading…</span>
+  <span id="status">Ready</span>
   <div id="load-bar"></div>
 </div>
 <div id="body">
@@ -149,18 +149,9 @@ var TILES = {
   night: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
   day:   'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'
 };
-var ATTR = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CARTO</a>';
+var ATTR = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
 var currentMode = 'night';
 var baseTile = L.tileLayer(TILES.night, { attribution: ATTR, maxZoom: 19 }).addTo(map);
-
-document.getElementById('map-mode-btn').addEventListener('click', function() {
-  var next = currentMode === 'night' ? 'day' : 'night';
-  map.removeLayer(baseTile);
-  baseTile = L.tileLayer(TILES[next], { attribution: ATTR, maxZoom: 19 }).addTo(map);
-  baseTile.bringToBack();
-  currentMode = next;
-  this.innerHTML = next === 'night' ? '&#9728; Day' : '&#9790; Night';
-});
 
 // ── STATE ──────────────────────────────────────────────────────────────────
 var COLORS = ['#58a6ff','#3fb950','#f78166','#d2a8ff','#ffa657'];
@@ -173,323 +164,199 @@ var allItems = [];
 var activeItem = null;
 var gecImageLayer = null;
 
-// ── SIDEBAR TOGGLE ─────────────────────────────────────────────────────────
-document.getElementById('toggle-sidebar').addEventListener('click', function() {
-  document.getElementById('sidebar').classList.toggle('collapsed');
-  setTimeout(function() { map.invalidateSize(); }, 220);
-});
-
-// ── RELOAD ─────────────────────────────────────────────────────────────────
-document.getElementById('reload-btn').addEventListener('click', async function() {
-  var btn = this;
-  btn.classList.add('spinning'); btn.disabled = true;
-  removeGecImage();
-  allItems.forEach(function(i) { if (map.hasLayer(i.layer)) map.removeLayer(i.layer); });
-  allItems = []; activeItem = null;
-  document.getElementById('dataset-list').innerHTML = '';
-  document.getElementById('detail-panel').classList.remove('visible');
-  document.getElementById('load-bar').style.cssText = 'opacity:1;width:0%';
-  document.getElementById('location-filter').value = '';
-  document.getElementById('search-input').value = '';
-  try { await loadCatalog(); } catch(e) { document.getElementById('status').textContent = 'Reload failed'; console.error(e); }
-  btn.classList.remove('spinning'); btn.disabled = false;
-});
+// ── ROBUST FETCH WITH RETRY ────────────────────────────────────────────────
+async function fetchWithRetry(url, retries = 2) {
+  for (let i = 0; i <= retries; i++) {
+    try {
+      const response = await fetch(url);
+      if (response.ok) return response;
+      if (response.status === 503) await new Promise(res => setTimeout(res, 500)); // Wait on 503
+    } catch (e) {
+      if (i === retries) throw e;
+    }
+  }
+  throw new Error('Failed after retries');
+}
 
 // ── LOAD CATALOG ───────────────────────────────────────────────────────────
 async function loadCatalog() {
-  var res = await fetch('catalog/catalog_index.json?t=' + Date.now());
-  var entries = await res.json();
-  var total = entries.length;
+  const statusEl = document.getElementById('status');
+  const loadBar = document.getElementById('load-bar');
+  const listEl = document.getElementById('dataset-list');
+  
+  statusEl.textContent = 'Fetching catalog index...';
+  let entries;
+  try {
+    const res = await fetch('catalog/catalog_index.json?t=' + Date.now());
+    entries = await res.json();
+  } catch(e) {
+    statusEl.textContent = 'Error: catalog_index.json not found';
+    return;
+  }
 
-  var sel = document.getElementById('location-filter');
+  // Populate Filter
+  const sel = document.getElementById('location-filter');
   while (sel.options.length > 1) sel.remove(1);
-  Array.from(new Set(entries.map(function(e) { return e.location; }))).sort().forEach(function(loc) {
-    var o = document.createElement('option'); o.value = loc; o.textContent = loc; sel.appendChild(o);
+  [...new Set(entries.map(e => e.location))].sort().forEach(loc => {
+    const o = document.createElement('option'); o.value = loc; o.textContent = loc; sel.appendChild(o);
   });
 
-  var listEl = document.getElementById('dataset-list');
-  var loadBar = document.getElementById('load-bar');
-  var allBounds = [];
-  var loaded = 0, failed = 0, cbIdx = 0;
-
-  for (var i = 0; i < entries.length; i++) {
-    var entry = entries[i];
-    var relPath = entry.json_saved
-      .replace(/\\/g, '/')
-      .replace(/^\.\//, '')
-      .split('/')
-      .map(function(seg) { return encodeURIComponent(seg); })
-      .join('/');
-
-    var row = document.createElement('div');
+  let loaded = 0, failed = 0, allBounds = [];
+  
+  for (const entry of entries) {
+    const row = document.createElement('div');
     row.className = 'dataset-item';
-    row.innerHTML = '<div class="item-loading">&#8987; ' + entry.dataset_name + '</div>';
+    row.innerHTML = `<div class="item-loading">⌛ ${entry.dataset_name}</div>`;
     listEl.appendChild(row);
 
+    // Correct pathing: Ensure relative paths from catalog_index are handled
+    const cleanPath = entry.json_saved.replace(/^\.\//, 'catalog/').replace(/\\/g, '/');
+    
     try {
-      var r = await fetch(relPath + '?t=' + Date.now());
-      if (!r.ok) throw new Error(r.status);
-      var json = await r.json();
-      var collect = json.collects && json.collects[0];
-      if (!collect || !collect.footprintPolygonLla) throw new Error('no footprint');
+      const r = await fetchWithRetry(cleanPath + '?t=' + Date.now());
+      const json = await r.json();
+      const collect = json.collects && json.collects[0];
+      if (!collect) throw new Error('Invalid JSON structure');
 
-      var latLngs = collect.footprintPolygonLla.coordinates[0].map(function(c) { return [c[1], c[0]]; });
-      var color = getColor(entry.location);
-      var layer = L.polygon(latLngs, { color: color, weight: 1.5, fillColor: color, fillOpacity: 0.15 });
+      const latLngs = collect.footprintPolygonLla.coordinates[0].map(c => [c[1], c[0]]);
+      const color = getColor(entry.location);
+      const layer = L.polygon(latLngs, { color: color, weight: 1.5, fillColor: color, fillOpacity: 0.15 });
       allBounds = allBounds.concat(latLngs);
 
-      var date = collect.startAtUTC ? collect.startAtUTC.slice(0, 10) : '—';
-      var sat  = json.umbraSatelliteName || '—';
-      var band = collect.radarBand || '—';
-      var cbId = 'cb-' + (cbIdx++);
+      const date = collect.startAtUTC ? collect.startAtUTC.slice(0, 10) : '—';
+      const sat  = json.umbraSatelliteName || '—';
+      const cbId = 'cb-' + Math.random().toString(36).substr(2, 9);
 
-      row.innerHTML =
-        '<div class="item-check-wrap">' +
-          '<input type="checkbox" id="' + cbId + '">' +
-          '<label for="' + cbId + '" style="border-color:' + color + '"></label>' +
-        '</div>' +
-        '<div class="item-body">' +
-          '<div class="item-location">' + entry.location + '</div>' +
-          '<div class="item-name">' + entry.dataset_name + '</div>' +
-          '<div class="item-meta">' +
-            '<span class="item-tag date">' + date + '</span>' +
-            '<span class="item-tag sat">' + sat + '</span>' +
-            '<span class="item-tag band">Band ' + band + '</span>' +
-          '</div>' +
-        '</div>';
+      row.innerHTML = `
+        <div class="item-check-wrap">
+          <input type="checkbox" id="${cbId}">
+          <label for="${cbId}" style="border-color:${color}"></label>
+        </div>
+        <div class="item-body">
+          <div class="item-location">${entry.location}</div>
+          <div class="item-name">${entry.dataset_name}</div>
+          <div class="item-meta">
+            <span class="item-tag">${date}</span>
+            <span class="item-tag sat">${sat}</span>
+          </div>
+        </div>`;
 
-      (function(entry, layer, collect, json, row) {
-        var checkbox = row.querySelector('input[type=checkbox]');
-        var item = { entry: entry, layer: layer, collect: collect, json: json, row: row, checkbox: checkbox };
-        allItems.push(item);
-        checkbox.addEventListener('change', function() {
-          if (checkbox.checked) map.addLayer(layer); else map.removeLayer(layer);
-          updateCount();
-        });
-        row.querySelector('.item-body').addEventListener('click', function() {
-          if (!checkbox.checked) { checkbox.checked = true; map.addLayer(layer); updateCount(); }
-          selectItem(item);
-        });
-        layer.on('click', function() { selectItem(item); });
-      })(entry, layer, collect, json, row);
+      const checkbox = row.querySelector('input');
+      const item = { entry, layer, collect, json, row, checkbox };
+      allItems.push(item);
 
+      checkbox.onchange = () => checkbox.checked ? map.addLayer(layer) : map.removeLayer(layer);
+      row.querySelector('.item-body').onclick = () => {
+        if (!checkbox.checked) { checkbox.checked = true; map.addLayer(layer); }
+        selectItem(item);
+      };
+      layer.on('click', () => selectItem(item));
+      
       loaded++;
     } catch(e) {
-      row.innerHTML = '<div class="item-loading item-error">&#10007; ' + entry.dataset_name + '</div>';
+      row.innerHTML = `<div class="item-loading item-error">❌ ${entry.dataset_name} (Failed)</div>`;
+      console.warn(`Failed to load: ${cleanPath}`, e);
       failed++;
     }
 
-    loadBar.style.width = ((loaded + failed) / total * 100) + '%';
-    document.getElementById('status').textContent = 'Loading… ' + (loaded + failed) + '/' + total;
+    loadBar.style.width = ((loaded + failed) / entries.length * 100) + '%';
+    statusEl.textContent = `Loading: ${loaded + failed}/${entries.length}`;
   }
 
   if (allBounds.length) map.fitBounds(allBounds);
-  loadBar.style.width = '100%';
-  setTimeout(function() { loadBar.style.opacity = '0'; }, 600);
-  document.getElementById('status').textContent = loaded + ' datasets' + (failed ? ' · ' + failed + ' failed' : '');
+  setTimeout(() => loadBar.style.opacity = '0', 600);
+  statusEl.textContent = `${loaded} Loaded, ${failed} Failed`;
   updateCount();
 }
 
-// ── SELECT ITEM ────────────────────────────────────────────────────────────
-function selectItem(item) {
-  if (activeItem) {
-    activeItem.row.classList.remove('active');
-    activeItem.layer.setStyle({ weight: 1.5, fillOpacity: 0.15 });
-  }
-  activeItem = item;
-  item.row.classList.add('active');
-  item.row.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-  item.layer.setStyle({ weight: 2.5, fillOpacity: 0.35 });
-  map.fitBounds(item.layer.getBounds(), { padding: [60, 60] });
-
-  var c = item.collect;
-  var detailRows = [
-    ['Dataset',      item.entry.dataset_name],
-    ['Location',     item.entry.location],
-    ['Date / time',  c.startAtUTC ? c.startAtUTC.slice(0,19).replace('T',' ') + ' UTC' : '—'],
-    ['Satellite',    item.json.umbraSatelliteName || '—'],
-    ['Imaging mode', item.json.imagingMode || '—'],
-    ['Polarisation', c.polarizations ? c.polarizations.join(', ') : '—'],
-    ['Track',        c.satelliteTrack || '—'],
-    ['Incidence',    c.angleIncidenceDegrees != null ? c.angleIncidenceDegrees.toFixed(4) + '°' : '—'],
-    ['Squint',       c.angleSquintDegrees    != null ? c.angleSquintDegrees.toFixed(4)    + '°' : '—'],
-    ['Az res.',      c.maxGroundResolution ? c.maxGroundResolution.azimuthMeters.toFixed(3) + ' m' : '—'],
-    ['Rng res.',     c.maxGroundResolution ? c.maxGroundResolution.rangeMeters.toFixed(3)   + ' m' : '—'],
-    ['UUID',         item.entry.uuid]
-  ];
-  document.getElementById('detail-rows').innerHTML = detailRows.map(function(r) {
-    return '<div class="detail-row"><span class="detail-key">' + r[0] + '</span><span class="detail-val">' + r[1] + '</span></div>';
-  }).join('');
-
-  var lb = document.getElementById('load-img-btn');
-  lb.disabled = false; lb.innerHTML = '&#9654; Load GEC image';
-  document.getElementById('remove-img-btn').style.display = 'none';
-  setImgStatus('');
-  document.getElementById('detail-panel').classList.add('visible');
-}
-
-document.getElementById('detail-close').addEventListener('click', function() {
-  document.getElementById('detail-panel').classList.remove('visible');
-  removeGecImage();
-  if (activeItem) {
-    activeItem.row.classList.remove('active');
-    activeItem.layer.setStyle({ weight: 1.5, fillOpacity: 0.15 });
-    activeItem = null;
-  }
-});
-
-// ── BULK / FILTER ──────────────────────────────────────────────────────────
-function visibleItems() { return allItems.filter(function(i) { return i.row.style.display !== 'none'; }); }
-document.getElementById('check-all').addEventListener('click', function() {
-  visibleItems().forEach(function(i) { if (!i.checkbox.checked) { i.checkbox.checked = true; map.addLayer(i.layer); } });
-  updateCount();
-});
-document.getElementById('uncheck-all').addEventListener('click', function() {
-  visibleItems().forEach(function(i) { if (i.checkbox.checked) { i.checkbox.checked = false; map.removeLayer(i.layer); } });
-  updateCount();
-});
-function filterItems() {
-  var loc = document.getElementById('location-filter').value;
-  var q   = document.getElementById('search-input').value.toLowerCase();
-  allItems.forEach(function(i) {
-    var show = (!loc || i.entry.location === loc) && (!q || i.entry.dataset_name.toLowerCase().indexOf(q) !== -1);
-    i.row.style.display = show ? '' : 'none';
-    if (!show && i.checkbox.checked) map.removeLayer(i.layer);
-    if ( show && i.checkbox.checked) map.addLayer(i.layer);
-  });
-  updateCount();
-}
-function updateCount() {
-  var vis = visibleItems().length, chk = visibleItems().filter(function(i){return i.checkbox.checked;}).length, tot = allItems.length;
-  var t = (vis === tot) ? (tot + ' datasets') : (vis + '/' + tot);
-  if (chk > 0) t += ' · ' + chk + ' shown';
-  document.getElementById('dataset-count').textContent = t;
-}
-document.getElementById('location-filter').addEventListener('change', filterItems);
-document.getElementById('search-input').addEventListener('input', filterItems);
-
-// ── GEC IMAGE LOADER ───────────────────────────────────────────
-
-function buildGecUrl(item) {
-  var prefix = item.entry.s3_prefix.replace('s3://umbra-open-data-catalog/', '').replace(/\\/g, '/');
-  var enc = prefix.split('/').map(function(s) { return encodeURIComponent(s); }).join('/');
-  return 'https://umbra-open-data-catalog.s3.us-west-2.amazonaws.com/' +
-         enc + encodeURIComponent(item.entry.dataset_name) + '_GEC.tif';
-}
-
-function setImgStatus(msg, isError) {
-  var el = document.getElementById('img-status');
-  el.textContent = msg;
-  el.style.color = isError ? 'var(--danger)' : 'var(--muted)';
-}
-
-function removeGecImage() {
-  if (gecImageLayer) { map.removeLayer(gecImageLayer); gecImageLayer = null; }
-  document.getElementById('remove-img-btn').style.display = 'none';
-  document.getElementById('opacity-control').classList.remove('visible');
-  var lb = document.getElementById('load-img-btn');
-  lb.disabled = false; lb.innerHTML = '&#9654; Load GEC image';
-  setImgStatus('');
-}
-
-document.getElementById('remove-img-btn').addEventListener('click', removeGecImage);
-
-// Transparency Slider Event
-document.getElementById('opacity-slider').addEventListener('input', function(e) {
-  if (gecImageLayer) {
-    gecImageLayer.setOpacity(e.target.value);
-  }
-});
-
+// ── GEC IMAGE (WITH BLACK BORDER FIX) ──────────────────────────────────────
 document.getElementById('load-img-btn').addEventListener('click', async function() {
   if (!activeItem) return;
-  var item    = activeItem;
-  var loadBtn = document.getElementById('load-img-btn');
-  var remBtn  = document.getElementById('remove-img-btn');
-
+  const loadBtn = this;
+  const remBtn = document.getElementById('remove-img-btn');
+  const status = document.getElementById('img-status');
+  
   removeGecImage();
   loadBtn.disabled = true;
-  loadBtn.textContent = 'Loading…';
+  loadBtn.textContent = 'Processing...';
 
-  var url = buildGecUrl(item);
+  const prefix = activeItem.entry.s3_prefix.replace('s3://umbra-open-data-catalog/', '').replace(/\\/g, '/');
+  const url = `https://umbra-open-data-catalog.s3.us-west-2.amazonaws.com/${prefix}${encodeURIComponent(activeItem.entry.dataset_name)}_GEC.tif`;
 
   try {
-    setImgStatus('Initialising GDAL...');
-    var Gdal = await initGdalJs({
-      path: 'https://cdn.jsdelivr.net/npm/gdal3.js@2.8.1/dist/package',
-      useWorker: false
-    });
+    const Gdal = await initGdalJs({ path: 'https://cdn.jsdelivr.net/npm/gdal3.js@2.8.1/dist/package', useWorker: false });
+    
+    status.textContent = 'Fetching GeoTIFF...';
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`S3 Error: ${res.status}`);
+    
+    const file = new File([await res.arrayBuffer()], 'input.tif');
+    const ds = (await Gdal.open([file])).datasets[0];
 
-    setImgStatus('Fetching GeoTIFF...');
-    var response = await fetch(url);
-    if (!response.ok) throw new Error('HTTP ' + response.status);
-    var tifFile = new File([await response.arrayBuffer()], 'input.tif', { type: 'image/tiff' });
+    status.textContent = 'Warping...';
+    const warped = await Gdal.gdalwarp(ds, ['-t_srs', 'EPSG:4326', '-of', 'GTiff']);
+    await Gdal.close(ds);
 
-    var srcDataset = (await Gdal.open([tifFile])).datasets[0];
+    const warpedDs = (await Gdal.open([new File([await Gdal.getFileBytes(warped)], 'w.tif')])).datasets[0];
+    const info = await Gdal.getInfo(warpedDs);
+    const corners = info.corners;
+    const lons = corners.map(c => c[0]), lats = corners.map(c => c[1]);
 
-    setImgStatus('Warping to EPSG:4326...');
-    var warpedPath = await Gdal.gdalwarp(srcDataset, [
-      '-of', 'GTiff',
-      '-t_srs', 'EPSG:4326',
-      '-r', 'bilinear',
-      '-overwrite'
+    status.textContent = 'Removing borders...';
+    // FIX: -dstnodata 0 removes the black parts
+    const pngPath = await Gdal.gdal_translate(warpedDs, [
+      '-of', 'PNG', '-ot', 'Byte', '-scale', '-outsize', '1024', '0', '-dstnodata', '0'
     ]);
-    await Gdal.close(srcDataset);
+    
+    const pngBytes = await Gdal.getFileBytes(pngPath);
+    const blobUrl = URL.createObjectURL(new Blob([pngBytes], { type: 'image/png' }));
+    const bounds = [[Math.min(...lats), Math.min(...lons)], [Math.max(...lats), Math.max(...lons)]];
 
-    setImgStatus('Extracting metadata...');
-    var warpedBytes = await Gdal.getFileBytes(warpedPath);
-    var warpedFile = new File([warpedBytes], 'warped.tif');
-    var warpedContainer = await Gdal.open([warpedFile]);
-    var warpedDsObj = warpedContainer.datasets[0];
-    var warpedInfo = await Gdal.getInfo(warpedDsObj);
-
-    var wc     = warpedInfo.corners;
-    var allLng = wc.map(function(c) { return c[0]; });
-    var allLat = wc.map(function(c) { return c[1]; });
-    var west   = Math.min.apply(null, allLng), east  = Math.max.apply(null, allLng);
-    var south  = Math.min.apply(null, allLat), north = Math.max.apply(null, allLat);
-
-    setImgStatus('Converting to PNG...');
-    // '-dstnodata 0' removes the black padding by making pixel value 0 transparent
-    var pngPath = await Gdal.gdal_translate(warpedDsObj, [
-      '-of', 'PNG',
-      '-ot', 'Byte',
-      '-scale',
-      '-outsize', '1024', '0',
-      '-dstnodata', '0'
-    ]);
-    await Gdal.close(warpedDsObj);
-
-    setImgStatus('Rendering...');
-    var pngBytes = await Gdal.getFileBytes(pngPath);
-    var blob    = new Blob([pngBytes], { type: 'image/png' });
-    var blobUrl = URL.createObjectURL(blob);
-    var bounds  = L.latLngBounds([[south, west], [north, east]]);
-
-    var initialOpacity = document.getElementById('opacity-slider').value;
-    gecImageLayer = L.imageOverlay(blobUrl, bounds, { opacity: initialOpacity, interactive: false });
-    gecImageLayer.addTo(map);
-    map.fitBounds(item.layer.getBounds(), { padding: [40, 40] });
-
-    remBtn.style.display = 'inline-block';
+    gecImageLayer = L.imageOverlay(blobUrl, bounds, { opacity: 0.9 }).addTo(map);
+    map.fitBounds(bounds);
+    
     document.getElementById('opacity-control').classList.add('visible');
-    loadBtn.disabled     = false;
-    loadBtn.innerHTML    = '&#9654; Reload GEC image';
-    setImgStatus('GEC loaded ✓');
-
+    remBtn.style.display = 'inline-block';
+    loadBtn.innerHTML = '&#8635; Reload';
+    loadBtn.disabled = false;
+    status.textContent = 'Loaded ✓';
   } catch(e) {
-    console.error('GEC load error:', e);
-    loadBtn.disabled  = false;
-    loadBtn.innerHTML = '&#9654; Load GEC image';
-    setImgStatus('Failed: ' + (e.message || String(e)), true);
+    status.textContent = 'Error loading image';
+    loadBtn.disabled = false;
+    console.error(e);
   }
 });
 
-// ── INIT ───────────────────────────────────────────────────────────────────
-loadCatalog().catch(function(e) {
-  document.getElementById('status').textContent = 'Error loading catalog';
-  console.error(e);
-});
+function removeGecImage() {
+  if (gecImageLayer) map.removeLayer(gecImageLayer);
+  gecImageLayer = null;
+  document.getElementById('opacity-control').classList.remove('visible');
+  document.getElementById('remove-img-btn').style.display = 'none';
+  document.getElementById('load-img-btn').innerHTML = '&#9654; Load GEC image';
+  document.getElementById('img-status').textContent = '';
+}
+
+// UI Helpers
+function selectItem(item) {
+  if (activeItem) activeItem.row.classList.remove('active');
+  activeItem = item;
+  item.row.classList.add('active');
+  document.getElementById('detail-panel').classList.add('visible');
+  document.getElementById('detail-rows').innerHTML = `
+    <div class="detail-row"><span class="detail-key">Location</span><span class="detail-val">${item.entry.location}</span></div>
+    <div class="detail-row"><span class="detail-key">Mode</span><span class="detail-val">${item.json.imagingMode || 'SAR'}</span></div>
+  `;
+}
+function updateCount() {
+  const chk = allItems.filter(i => i.checkbox.checked).length;
+  document.getElementById('dataset-count').textContent = `${allItems.length} total · ${chk} on map`;
+}
+
+document.getElementById('opacity-slider').oninput = (e) => gecImageLayer && gecImageLayer.setOpacity(e.target.value);
+document.getElementById('remove-img-btn').onclick = removeGecImage;
+document.getElementById('detail-close').onclick = () => document.getElementById('detail-panel').classList.remove('visible');
+
+loadCatalog();
 </script>
 </body>
 </html>
