@@ -31,7 +31,7 @@
     #detail-panel.visible { display:block; }
     #map { flex:1; position:relative; }
     
-    /* SAR Transparency Slider */
+    /* Transparency Slider */
     #opacity-control {
       position: absolute; bottom: 24px; left: 50%; transform: translateX(-50%);
       background: var(--surface); border: 1px solid var(--border);
@@ -91,7 +91,11 @@ async function fetchWithRetry(url, retries = 2) {
     try {
       const res = await fetch(url);
       if (res.ok) return res;
-    } catch (e) { if (i === retries) throw e; }
+      if (res.status === 404) throw new Error("404 Not Found");
+    } catch (e) { 
+      if (i === retries) throw e; 
+      console.warn(`Retry ${i+1} for ${url}`);
+    }
     await new Promise(r => setTimeout(r, 400));
   }
 }
@@ -112,7 +116,9 @@ async function loadCatalog() {
       row.textContent = `⌛ ${entry.dataset_name}`;
       listEl.appendChild(row);
 
+      // FIX: Ensure path is correctly constructed from root
       const jsonPath = entry.json_saved.replace(/^\.\//, 'catalog/').replace(/\\/g, '/');
+      
       try {
         const r = await fetchWithRetry(jsonPath + '?t=' + Date.now());
         const json = await r.json();
@@ -133,6 +139,7 @@ async function loadCatalog() {
         loaded++;
       } catch (e) {
         row.innerHTML = `<span style="color:var(--danger)">❌ ${entry.dataset_name}</span>`;
+        console.error(`Failed to load ${jsonPath}:`, e);
         failed++;
       }
       statusEl.textContent = `Loaded ${loaded}/${entries.length} (${failed} failed)`;
@@ -168,7 +175,7 @@ document.getElementById('load-img-btn').onclick = async () => {
     const tifFile = new File([await res.arrayBuffer()], 'input.tif');
     const ds = (await Gdal.open([tifFile])).datasets[0];
 
-    // Reproject and create PNG with Transparency (dstnodata 0)
+    // Reproject and create PNG with dstnodata 0 (fixes black borders)
     const warpedPath = await Gdal.gdalwarp(ds, ['-t_srs', 'EPSG:4326', '-of', 'GTiff']);
     const warpedDs = (await Gdal.open([new File([await Gdal.getFileBytes(warpedPath)], 'w.tif')])).datasets[0];
     const info = await Gdal.getInfo(warpedDs);
