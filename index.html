@@ -377,9 +377,8 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/proj4@2.9.0/dist/proj4.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/proj4@2.9.0/dist/proj4.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/georaster@1.6.0/dist/georaster.browser.bundle.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/georaster-layer-for-leaflet@2.6.0/dist/georaster-layer-for-leaflet.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/georaster-layer-for-leaflet@3.9.2/dist/georaster-layer-for-leaflet.min.js"></script>
 <script>
   // MAP
   const map = L.map('map', { zoomControl: true }).setView([0, 0], 2);
@@ -700,13 +699,27 @@
       console.log('EPSG:', georaster.projection);
       console.log('Native bounds:', georaster.xmin, georaster.ymin, georaster.xmax, georaster.ymax);
 
+      // Register proj4 definition for the UTM zone found in the GeoTIFF
+      // georaster-layer-for-leaflet v3 looks up proj4.defs(epsgCode) for reprojection
+      var epsg = georaster.projection;
+      if (epsg && epsg !== 4326 && epsg !== 3857) {
+        // UTM zones 1-60 North (326xx) and South (327xx)
+        var zone = epsg - 32600;
+        var south = false;
+        if (zone <= 0) { zone = epsg - 32700; south = true; }
+        if (zone >= 1 && zone <= 60) {
+          var utm_def = '+proj=utm +zone=' + zone + (south ? ' +south' : '') +
+            ' +datum=WGS84 +units=m +no_defs';
+          proj4.defs('EPSG:' + epsg, utm_def);
+          console.log('Registered proj4:', 'EPSG:' + epsg, utm_def);
+        }
+      }
+
       // Adaptive sqrt stretch using georaster metadata min/max
       var dataMin = (georaster.mins && georaster.mins[0] != null) ? georaster.mins[0] : 0;
       var dataMax = (georaster.maxs && georaster.maxs[0] != null) ? georaster.maxs[0] : 3000;
       var sqrtMax = Math.sqrt(Math.max(dataMax, 1));
 
-      // proj4 loaded globally — georaster-layer-for-leaflet uses it automatically
-      // to reproject from the GeoTIFF native CRS (UTM) to EPSG:4326
       currentGeoRasterLayer = new GeoRasterLayer({
         georaster:  georaster,
         opacity:    0.9,
