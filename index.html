@@ -290,6 +290,35 @@
       transition: width 0.3s;
       z-index: 999;
     }
+
+    /* image load button row */
+    #img-btn-row {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+      margin-top: 10px;
+      flex-wrap: wrap;
+    }
+    .img-btn {
+      font-size: 11px;
+      font-family: 'IBM Plex Mono', monospace;
+      padding: 4px 10px;
+      border-radius: 4px;
+      cursor: pointer;
+      border: 1px solid var(--border);
+      background: none;
+      transition: all 0.15s;
+    }
+    .img-btn.load { color: var(--accent2); border-color: #3fb95060; }
+    .img-btn.load:hover { background: #3fb95015; border-color: var(--accent2); }
+    .img-btn.load:disabled { opacity: 0.4; cursor: not-allowed; }
+    .img-btn.remove { color: var(--danger); border-color: #f8514960; display: none; }
+    .img-btn.remove:hover { background: #f8514915; border-color: var(--danger); }
+    #img-status {
+      font-size: 10px;
+      font-family: 'IBM Plex Mono', monospace;
+      color: var(--muted);
+    }
   </style>
 </head>
 <body>
@@ -318,12 +347,19 @@
     <div id="detail-panel">
       <h3>Collect details <span id="detail-close" title="Close">✕</span></h3>
       <div id="detail-rows"></div>
+      <div id="img-btn-row">
+        <button class="img-btn load" id="load-img-btn">&#9654; Load GEC image</button>
+        <button class="img-btn remove" id="remove-img-btn">&#9726; Remove image</button>
+        <span id="img-status"></span>
+      </div>
     </div>
   </div>
   <div id="map"></div>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/georaster@1.6.0/dist/georaster.browser.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/georaster-layer-for-leaflet@3.10.0/dist/georaster-layer-for-leaflet.min.js"></script>
 <script>
   const map = L.map('map', { zoomControl: true }).setView([0, 0], 2);
   L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
@@ -555,6 +591,88 @@
   loadCatalog().catch(e => {
     document.getElementById('status').textContent = 'Error loading catalog';
     console.error(e);
+  });
+
+  // ── GEC IMAGE LOADER ──
+  let currentGeoRasterLayer = null;
+  let currentImageItem = null;
+
+  function buildGecUrl(item) {
+    // s3_prefix: s3://umbra-open-data-catalog/sar-data/tasks/{location}/{uuid}/{dataset_name}/
+    // HTTPS URL:  https://umbra-open-data-catalog.s3.us-west-2.amazonaws.com/sar-data/tasks/{location}/{uuid}/{dataset_name}/{dataset_name}_GEC.tif
+    const prefix = item.entry.s3_prefix
+      .replace('s3://umbra-open-data-catalog/', '')
+      .replace(/\/g, '/');
+    const base = 'https://umbra-open-data-catalog.s3.us-west-2.amazonaws.com/';
+    const filename = item.entry.dataset_name + '_GEC.tif';
+    return base + prefix + filename;
+  }
+
+  function setImgStatus(msg, isError) {
+    const el = document.getElementById('img-status');
+    el.textContent = msg;
+    el.style.color = isError ? 'var(--danger)' : 'var(--muted)';
+  }
+
+  function removeCurrentImage() {
+    if (currentGeoRasterLayer) {
+      map.removeLayer(currentGeoRasterLayer);
+      currentGeoRasterLayer = null;
+    }
+    currentImageItem = null;
+    document.getElementById('remove-img-btn').style.display = 'none';
+    document.getElementById('load-img-btn').disabled = false;
+    setImgStatus('');
+  }
+
+  document.getElementById('remove-img-btn').addEventListener('click', removeCurrentImage);
+
+  document.getElementById('load-img-btn').addEventListener('click', async () => {
+    if (!activeItem) return;
+
+    const item = activeItem;
+    const loadBtn   = document.getElementById('load-img-btn');
+    const removeBtn = document.getElementById('remove-img-btn');
+
+    // remove any existing image first
+    removeCurrentImage();
+
+    loadBtn.disabled = true;
+    setImgStatus('Fetching COG overview…');
+
+    const url = buildGecUrl(item);
+
+    try {
+      const georaster = await parseGeoraster(url);
+
+      // Normalise SAR amplitude to 0–255 for greyscale display
+      // Use a simple linear stretch on the first band
+      currentGeoRasterLayer = new GeoRasterLayer({
+        georaster,
+        opacity: 0.9,
+        pixelValuesToColorFn: values => {
+          const v = values[0];
+          if (v === null || v === undefined || isNaN(v)) return null;
+          // Clip to [0, 3000] then normalise — adjust upper bound for your data range
+          const clipped = Math.min(Math.max(v, 0), 3000);
+          const norm = Math.round((clipped / 3000) * 255);
+          return `rgb(${norm},${norm},${norm})`;
+        },
+        resolution: 256
+      });
+
+      currentGeoRasterLayer.addTo(map);
+      currentImageItem = item;
+
+      map.fitBounds(currentGeoRasterLayer.getBounds(), { padding: [40, 40] });
+      removeBtn.style.display = 'inline-block';
+      loadBtn.disabled = false;
+      setImgStatus('GEC loaded ✓');
+    } catch(e) {
+      console.error('GEC load error:', e);
+      loadBtn.disabled = false;
+      setImgStatus('Failed to load: ' + (e.message || e), true);
+    }
   });
 </script>
 </body>
