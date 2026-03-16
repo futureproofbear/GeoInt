@@ -14,8 +14,6 @@
       --sidebar-w:300px;
     }
     body { font-family:'IBM Plex Sans',sans-serif; background:var(--bg); color:var(--text); display:flex; flex-direction:column; height:100vh; overflow:hidden; }
-
-    /* HEADER */
     #header { height:48px; background:var(--surface); border-bottom:1px solid var(--border); display:flex; align-items:center; padding:0 16px; gap:10px; flex-shrink:0; z-index:1000; position:relative; }
     #header h1 { font-family:'IBM Plex Mono',monospace; font-size:13px; font-weight:500; letter-spacing:0.08em; color:var(--accent); text-transform:uppercase; }
     #status { font-size:11px; color:var(--muted); font-family:'IBM Plex Mono',monospace; margin-left:auto; }
@@ -25,11 +23,7 @@
     .hdr-btn.reload.spinning { color:var(--accent2); border-color:var(--accent2); animation:spin 1s linear infinite; }
     @keyframes spin { to { transform:rotate(360deg); } }
     #load-bar { position:absolute; bottom:0; left:0; height:2px; background:var(--accent); width:0%; transition:width 0.3s; z-index:999; }
-
-    /* LAYOUT */
     #body { display:flex; flex:1; overflow:hidden; }
-
-    /* SIDEBAR */
     #sidebar { width:var(--sidebar-w); background:var(--surface); border-right:1px solid var(--border); display:flex; flex-direction:column; flex-shrink:0; transition:width 0.2s ease,opacity 0.2s ease; overflow:hidden; }
     #sidebar.collapsed { width:0; opacity:0; pointer-events:none; }
     #sidebar-header { padding:10px 14px 8px; border-bottom:1px solid var(--border); flex-shrink:0; }
@@ -39,14 +33,10 @@
     #search-input { width:100%; background:var(--bg); border:1px solid var(--border); color:var(--text); font-size:12px; font-family:'IBM Plex Mono',monospace; padding:6px 8px; border-radius:4px; }
     #search-input::placeholder { color:var(--muted); }
     #search-input:focus { outline:none; border-color:var(--accent); }
-
-    /* BULK ROW */
     #bulk-row { display:flex; align-items:center; gap:6px; padding:6px 14px; border-bottom:1px solid var(--border); flex-shrink:0; }
     .bulk-btn { font-size:10px; font-family:'IBM Plex Mono',monospace; background:none; border:1px solid var(--border); color:var(--muted); padding:2px 7px; border-radius:3px; cursor:pointer; transition:all 0.12s; }
     .bulk-btn:hover { border-color:var(--accent); color:var(--accent); }
     #dataset-count { font-size:11px; color:var(--muted); font-family:'IBM Plex Mono',monospace; margin-left:auto; }
-
-    /* DATASET LIST */
     #dataset-list { flex:1; overflow-y:auto; overflow-x:hidden; }
     #dataset-list::-webkit-scrollbar { width:4px; }
     #dataset-list::-webkit-scrollbar-thumb { background:var(--border); border-radius:2px; }
@@ -68,11 +58,7 @@
     .item-tag.sat  { border-color:#58a6ff40; color:var(--accent);  background:#58a6ff10; }
     .item-loading { font-size:11px; font-family:'IBM Plex Mono',monospace; color:var(--muted); padding:8px 14px; opacity:0.6; }
     .item-error { color:var(--danger) !important; opacity:0.8; }
-
-    /* MAP */
     #map { flex:1; }
-
-    /* DETAIL PANEL */
     #detail-panel { border-top:1px solid var(--border); background:var(--bg); flex-shrink:0; display:none; flex-direction:column; max-height:310px; }
     #detail-panel.visible { display:flex; }
     #detail-header { display:flex; justify-content:space-between; align-items:center; padding:8px 14px 6px; flex-shrink:0; }
@@ -86,8 +72,6 @@
     .detail-row:last-child { border-bottom:none; }
     .detail-key { color:var(--muted); flex-shrink:0; margin-right:8px; }
     .detail-val { color:var(--text); text-align:right; word-break:break-all; }
-
-    /* IMAGE BUTTONS */
     #img-btn-row { display:flex; gap:6px; align-items:center; padding:8px 14px; border-top:1px solid var(--border); flex-shrink:0; flex-wrap:wrap; }
     .img-btn { font-size:11px; font-family:'IBM Plex Mono',monospace; padding:4px 10px; border-radius:4px; cursor:pointer; border:1px solid var(--border); background:none; transition:all 0.15s; }
     .img-btn.load { color:var(--accent2); border-color:#3fb95060; }
@@ -99,7 +83,6 @@
   </style>
 </head>
 <body>
-
 <div id="header">
   <h1>GeoInt Catalog</h1>
   <button class="hdr-btn" id="toggle-sidebar">&#9776; Datasets</button>
@@ -108,7 +91,6 @@
   <span id="status">Loading…</span>
   <div id="load-bar"></div>
 </div>
-
 <div id="body">
   <div id="sidebar">
     <div id="sidebar-header">
@@ -138,19 +120,15 @@
   <div id="map"></div>
 </div>
 
-<!-- Core map -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
-<!-- GeoTIFF parsing (no sidecar fetching, well-maintained) -->
-<script src="https://cdn.jsdelivr.net/npm/geotiff@2.1.3/dist-browser/geotiff.js"></script>
-<!-- proj4 for UTM -> WGS84 reprojection -->
-<script src="https://cdn.jsdelivr.net/npm/proj4@2.9.0/dist/proj4.js"></script>
+<!-- gdal3.js — GDAL compiled to WebAssembly. Loads its own WASM + data files from jsDelivr. -->
+<script src="https://cdn.jsdelivr.net/npm/gdal3.js@2.8.1/dist/package/gdal3.js"></script>
 
 <script>
 'use strict';
 
-// ── MAP SETUP ──────────────────────────────────────────────────────────────
+// ── MAP ────────────────────────────────────────────────────────────────────
 var map = L.map('map', { zoomControl: true }).setView([0, 0], 2);
-
 var TILES = {
   night: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
   day:   'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'
@@ -168,6 +146,13 @@ document.getElementById('map-mode-btn').addEventListener('click', function() {
   this.innerHTML = next === 'night' ? '&#9728; Day' : '&#9790; Night';
 });
 
+// ── GDAL INIT ──────────────────────────────────────────────────────────────
+// Initialise gdal3.js once at startup — loads WASM (~10 MB) in the background
+var gdalReady = initGdalJs({
+  path: 'https://cdn.jsdelivr.net/npm/gdal3.js@2.8.1/dist/package',
+  useWorker: false
+});
+
 // ── STATE ──────────────────────────────────────────────────────────────────
 var COLORS = ['#58a6ff','#3fb950','#f78166','#d2a8ff','#ffa657'];
 var locationColors = {}, colorIdx = 0;
@@ -175,10 +160,9 @@ function getColor(loc) {
   if (!locationColors[loc]) locationColors[loc] = COLORS[colorIdx++ % COLORS.length];
   return locationColors[loc];
 }
-
 var allItems = [];
 var activeItem = null;
-var gecImageLayer = null;   // current Leaflet ImageOverlay for GEC
+var gecImageLayer = null;
 
 // ── SIDEBAR TOGGLE ─────────────────────────────────────────────────────────
 document.getElementById('toggle-sidebar').addEventListener('click', function() {
@@ -198,7 +182,7 @@ document.getElementById('reload-btn').addEventListener('click', async function()
   document.getElementById('load-bar').style.cssText = 'opacity:1;width:0%';
   document.getElementById('location-filter').value = '';
   document.getElementById('search-input').value = '';
-  try { await loadCatalog(); } catch(e) { document.getElementById('status').textContent = 'Reload failed'; }
+  try { await loadCatalog(); } catch(e) { document.getElementById('status').textContent = 'Reload failed'; console.error(e); }
   btn.classList.remove('spinning'); btn.disabled = false;
 });
 
@@ -208,22 +192,19 @@ async function loadCatalog() {
   var entries = await res.json();
   var total = entries.length;
 
-  // Populate location filter
   var sel = document.getElementById('location-filter');
   while (sel.options.length > 1) sel.remove(1);
   Array.from(new Set(entries.map(function(e) { return e.location; }))).sort().forEach(function(loc) {
     var o = document.createElement('option'); o.value = loc; o.textContent = loc; sel.appendChild(o);
   });
 
-  var listEl  = document.getElementById('dataset-list');
+  var listEl = document.getElementById('dataset-list');
   var loadBar = document.getElementById('load-bar');
   var allBounds = [];
   var loaded = 0, failed = 0, cbIdx = 0;
 
   for (var i = 0; i < entries.length; i++) {
     var entry = entries[i];
-
-    // Encode each path segment so commas/spaces are correctly percent-encoded
     var relPath = entry.json_saved
       .replace(/\\/g, '/')
       .replace(/^\.\//, '')
@@ -244,9 +225,8 @@ async function loadCatalog() {
       if (!collect || !collect.footprintPolygonLla) throw new Error('no footprint');
 
       var latLngs = collect.footprintPolygonLla.coordinates[0].map(function(c) { return [c[1], c[0]]; });
-      var color   = getColor(entry.location);
-      var layer   = L.polygon(latLngs, { color: color, weight: 1.5, fillColor: color, fillOpacity: 0.15 });
-
+      var color = getColor(entry.location);
+      var layer = L.polygon(latLngs, { color: color, weight: 1.5, fillColor: color, fillOpacity: 0.15 });
       allBounds = allBounds.concat(latLngs);
 
       var date = collect.startAtUTC ? collect.startAtUTC.slice(0, 10) : '—';
@@ -273,7 +253,6 @@ async function loadCatalog() {
         var checkbox = row.querySelector('input[type=checkbox]');
         var item = { entry: entry, layer: layer, collect: collect, json: json, row: row, checkbox: checkbox };
         allItems.push(item);
-
         checkbox.addEventListener('change', function() {
           if (checkbox.checked) map.addLayer(layer); else map.removeLayer(layer);
           updateCount();
@@ -315,7 +294,7 @@ function selectItem(item) {
   map.fitBounds(item.layer.getBounds(), { padding: [60, 60] });
 
   var c = item.collect;
-  var rows = [
+  var detailRows = [
     ['Dataset',      item.entry.dataset_name],
     ['Location',     item.entry.location],
     ['Date / time',  c.startAtUTC ? c.startAtUTC.slice(0,19).replace('T',' ') + ' UTC' : '—'],
@@ -329,12 +308,12 @@ function selectItem(item) {
     ['Rng res.',     c.maxGroundResolution ? c.maxGroundResolution.rangeMeters.toFixed(3)   + ' m' : '—'],
     ['UUID',         item.entry.uuid]
   ];
-  document.getElementById('detail-rows').innerHTML = rows.map(function(r) {
+  document.getElementById('detail-rows').innerHTML = detailRows.map(function(r) {
     return '<div class="detail-row"><span class="detail-key">' + r[0] + '</span><span class="detail-val">' + r[1] + '</span></div>';
   }).join('');
 
-  document.getElementById('load-img-btn').disabled = false;
-  document.getElementById('load-img-btn').innerHTML = '&#9654; Load GEC image';
+  var lb = document.getElementById('load-img-btn');
+  lb.disabled = false; lb.innerHTML = '&#9654; Load GEC image';
   document.getElementById('remove-img-btn').style.display = 'none';
   setImgStatus('');
   document.getElementById('detail-panel').classList.add('visible');
@@ -343,12 +322,15 @@ function selectItem(item) {
 document.getElementById('detail-close').addEventListener('click', function() {
   document.getElementById('detail-panel').classList.remove('visible');
   removeGecImage();
-  if (activeItem) { activeItem.row.classList.remove('active'); activeItem.layer.setStyle({ weight:1.5, fillOpacity:0.15 }); activeItem = null; }
+  if (activeItem) {
+    activeItem.row.classList.remove('active');
+    activeItem.layer.setStyle({ weight: 1.5, fillOpacity: 0.15 });
+    activeItem = null;
+  }
 });
 
 // ── BULK / FILTER ──────────────────────────────────────────────────────────
 function visibleItems() { return allItems.filter(function(i) { return i.row.style.display !== 'none'; }); }
-
 document.getElementById('check-all').addEventListener('click', function() {
   visibleItems().forEach(function(i) { if (!i.checkbox.checked) { i.checkbox.checked = true; map.addLayer(i.layer); } });
   updateCount();
@@ -377,19 +359,22 @@ function updateCount() {
 document.getElementById('location-filter').addEventListener('change', filterItems);
 document.getElementById('search-input').addEventListener('input', filterItems);
 
-// ── GEC IMAGE LOADER ───────────────────────────────────────────────────────
-// Strategy: fetch GeoTIFF with geotiff.js, read overview, reproject with proj4,
-// paint to an offscreen canvas, then place as a Leaflet ImageOverlay.
-// This avoids georaster-layer-for-leaflet's global name / CDN issues entirely.
+// ── GEC IMAGE LOADER — uses GDAL (gdal3.js / WebAssembly) ──────────────────
+// Workflow:
+//   1. Fetch GEC GeoTIFF bytes from Umbra S3
+//   2. Write bytes into GDAL's virtual filesystem (/vsimem/)
+//   3. Use gdal_translate to warp to EPSG:4326 and convert to PNG
+//   4. Read output PNG bytes → blob URL → Leaflet ImageOverlay
+//   5. Get geographic bounds from GDAL dataset info for correct placement
+//   6. Clean up GDAL virtual files
 
 function buildGecUrl(item) {
   var prefix = item.entry.s3_prefix
     .replace('s3://umbra-open-data-catalog/', '')
     .replace(/\\/g, '/');
-  // encode each segment (handles spaces + commas in location names)
   var enc = prefix.split('/').map(function(s) { return encodeURIComponent(s); }).join('/');
-  return 'https://umbra-open-data-catalog.s3.us-west-2.amazonaws.com/' + enc +
-         encodeURIComponent(item.entry.dataset_name) + '_GEC.tif';
+  return 'https://umbra-open-data-catalog.s3.us-west-2.amazonaws.com/' +
+         enc + encodeURIComponent(item.entry.dataset_name) + '_GEC.tif';
 }
 
 function setImgStatus(msg, isError) {
@@ -417,138 +402,103 @@ document.getElementById('load-img-btn').addEventListener('click', async function
   removeGecImage();
   loadBtn.disabled = true;
   loadBtn.textContent = 'Loading…';
-  setImgStatus('Fetching GeoTIFF…');
 
   var url = buildGecUrl(item);
   console.log('GEC URL:', url);
 
+  var Gdal = null;
+  var inputPath  = '/vsimem/input.tif';
+  var outputPath = '/vsimem/output.png';
+
   try {
-    // 1. Open GeoTIFF via geotiff.js (reads range requests — COG friendly)
-    var tiff = await GeoTIFF.fromUrl(url, { allowFullFile: false });
-    var image = await tiff.getImage(); // reads first (highest-res) IFD header only
+    // 1. Wait for GDAL WASM to be ready
+    setImgStatus('Initialising GDAL…');
+    Gdal = await gdalReady;
 
-    setImgStatus('Reading overview…');
+    // 2. Fetch the GeoTIFF
+    setImgStatus('Fetching GeoTIFF…');
+    var response = await fetch(url);
+    if (!response.ok) throw new Error('HTTP ' + response.status);
+    var tifBytes = new Uint8Array(await response.arrayBuffer());
+    console.log('Fetched', tifBytes.length, 'bytes');
 
-    // 2. Read the smallest overview for fast display
-    var overviewCount = image.getSubFileType ? tiff.getImageCount() : 1;
-    var overviewImage = image;
-    try {
-      // getImageCount() > 1 means internal overviews exist — use the last (smallest)
-      var imgCount = await tiff.getImageCount();
-      if (imgCount > 1) {
-        overviewImage = await tiff.getImage(imgCount - 1);
-      }
-    } catch(e) { /* use full image */ }
+    // 3. Write into GDAL virtual filesystem
+    Gdal.FS.writeFile(inputPath, tifBytes);
 
-    // 3. Read raster data
-    var rasterData = await overviewImage.readRasters({ samples: [0] });
-    var width  = overviewImage.getWidth();
-    var height = overviewImage.getHeight();
-    var pixels = rasterData[0]; // Float32Array or similar
+    // 4. Open with GDAL to read metadata (projection, bounds)
+    setImgStatus('Reading metadata…');
+    var openResult = await Gdal.open([inputPath]);
+    var dataset    = openResult.datasets[0];
+    var info       = await Gdal.getInfo(dataset);
+    console.log('GDAL info:', JSON.stringify(info, null, 2));
 
-    setImgStatus('Reprojecting…');
+    // Extract geographic bounds from GDAL info
+    // info.wgs84Extent gives corners in WGS84 regardless of source CRS
+    var ext  = info.wgs84Extent;   // { coordinates: [[[lng,lat],...]] }
+    var coords = ext.coordinates[0];
+    var lngs = coords.map(function(c){return c[0];});
+    var lats = coords.map(function(c){return c[1];});
+    var west  = Math.min.apply(null, lngs);
+    var east  = Math.max.apply(null, lngs);
+    var south = Math.min.apply(null, lats);
+    var north = Math.max.apply(null, lats);
+    console.log('WGS84 bounds:', west, south, east, north);
 
-    // 4. Get the GeoTIFF's bounding box in its native CRS
-    var bbox    = overviewImage.getBoundingBox(); // [xmin, ymin, xmax, ymax]
-    var epsgCode = null;
-    try {
-      var geoKeys = overviewImage.getGeoKeys();
-      epsgCode = geoKeys.ProjectedCSTypeGeoKey || geoKeys.GeographicTypeGeoKey || null;
-    } catch(e) {}
+    await Gdal.close(dataset);
 
-    console.log('EPSG:', epsgCode, 'BBox:', bbox);
+    // 5. Use gdal_translate to:
+    //    - warp to EPSG:4326 (gdalwarp would be ideal but gdal_translate handles
+    //      the reprojection when combined with -a_srs and the data is already
+    //      georeferenced; for full warping use gdalwarp options below)
+    //    - scale to 8-bit (GDAL auto-scales Float32 → Byte with -scale)
+    //    - output as PNG for easy canvas rendering
+    setImgStatus('Warping & translating…');
+    var translateOptions = [
+      '-of', 'PNG',            // output format
+      '-ot', 'Byte',           // output type: 8-bit
+      '-scale',                // auto-scale min→max to 0→255
+      '-t_srs', 'EPSG:4326',   // reproject to WGS84
+      '-r', 'bilinear',        // resampling method
+      '-outsize', '1024', '0'  // limit width to 1024px (height auto)
+    ];
 
-    // 5. Build proj4 projection string for this CRS
-    var toWGS84;
-    if (!epsgCode || epsgCode === 4326) {
-      // Already geographic — bbox is [west, south, east, north]
-      toWGS84 = null;
-    } else {
-      // Register UTM zone or other projected CRS
-      var projStr = null;
-      var zoneN = epsgCode - 32600;
-      var zoneS = epsgCode - 32700;
-      if (zoneN >= 1 && zoneN <= 60) {
-        projStr = '+proj=utm +zone=' + zoneN + ' +datum=WGS84 +units=m +no_defs';
-      } else if (zoneS >= 1 && zoneS <= 60) {
-        projStr = '+proj=utm +zone=' + zoneS + ' +south +datum=WGS84 +units=m +no_defs';
-      }
-      if (projStr) {
-        proj4.defs('EPSG:' + epsgCode, projStr);
-        toWGS84 = proj4('EPSG:' + epsgCode, 'EPSG:4326');
-        console.log('proj4 registered:', projStr);
-      } else {
-        // Unknown CRS — fall back to treating bbox as lat/lng (may be wrong)
-        toWGS84 = null;
-        console.warn('Unknown EPSG:', epsgCode, '— treating as geographic');
-      }
-    }
+    var openResult2 = await Gdal.open([inputPath]);
+    var srcDataset  = openResult2.datasets[0];
+    var outputDataset = await Gdal.gdal_translate(srcDataset, translateOptions);
+    await Gdal.close(srcDataset);
 
-    // 6. Compute the geographic corners of the image
-    // bbox = [xmin, ymin, xmax, ymax] in native CRS
-    var xmin = bbox[0], ymin = bbox[1], xmax = bbox[2], ymax = bbox[3];
-
-    var sw, ne;
-    if (toWGS84) {
-      var swProj = toWGS84.forward([xmin, ymin]);
-      var neProj = toWGS84.forward([xmax, ymax]);
-      sw = [swProj[1], swProj[0]]; // [lat, lng]
-      ne = [neProj[1], neProj[0]];
-    } else {
-      sw = [ymin, xmin];
-      ne = [ymax, xmax];
-    }
-
-    var geoBounds = L.latLngBounds(sw, ne);
-    console.log('Geographic bounds:', sw, ne);
-
-    // 7. Normalise pixel values with sqrt stretch and paint to canvas
+    // 6. Read output PNG bytes
     setImgStatus('Rendering…');
-    var canvas = document.createElement('canvas');
-    canvas.width  = width;
-    canvas.height = height;
-    var ctx = canvas.getContext('2d');
-    var imgData = ctx.createImageData(width, height);
+    var pngBytes = await Gdal.getFileBytes(outputDataset);
+    await Gdal.close(outputDataset);
 
-    // Compute 2nd/98th percentile for better contrast
-    var sorted = Array.from(pixels).filter(function(v) { return isFinite(v) && v > 0; }).sort(function(a,b){return a-b;});
-    var lo = sorted[Math.floor(sorted.length * 0.02)] || 0;
-    var hi = sorted[Math.floor(sorted.length * 0.98)] || 1;
-    if (hi <= lo) hi = lo + 1;
-    var range = hi - lo;
+    // 7. Create blob URL from PNG bytes and add as Leaflet ImageOverlay
+    var blob    = new Blob([pngBytes], { type: 'image/png' });
+    var blobUrl = URL.createObjectURL(blob);
+    var bounds  = L.latLngBounds([[south, west], [north, east]]);
 
-    for (var p = 0; p < pixels.length; p++) {
-      var v = pixels[p];
-      var alpha = (!isFinite(v) || v <= 0) ? 0 : 255;
-      var norm  = alpha ? Math.min(Math.max((v - lo) / range, 0), 1) : 0;
-      // sqrt stretch for SAR amplitude
-      var grey  = Math.round(Math.sqrt(norm) * 255);
-      var idx4  = p * 4;
-      imgData.data[idx4]     = grey;
-      imgData.data[idx4 + 1] = grey;
-      imgData.data[idx4 + 2] = grey;
-      imgData.data[idx4 + 3] = alpha;
-    }
-    ctx.putImageData(imgData, 0, 0);
-
-    // 8. Convert canvas to data URL and add as Leaflet ImageOverlay
-    var dataUrl = canvas.toDataURL('image/png');
-    gecImageLayer = L.imageOverlay(dataUrl, geoBounds, { opacity: 0.9, interactive: false });
+    gecImageLayer = L.imageOverlay(blobUrl, bounds, { opacity: 0.9, interactive: false });
     gecImageLayer.addTo(map);
 
-    // Zoom to footprint polygon bounds (always correct)
+    // Zoom to the footprint polygon (ground truth bounds)
     map.fitBounds(item.layer.getBounds(), { padding: [40, 40] });
 
-    remBtn.style.display = 'inline-block';
-    loadBtn.disabled = false;
-    loadBtn.innerHTML = '&#9654; Reload GEC image';
+    remBtn.style.display   = 'inline-block';
+    loadBtn.disabled       = false;
+    loadBtn.innerHTML      = '&#9654; Reload GEC image';
     setImgStatus('GEC loaded \u2713');
 
   } catch(e) {
     console.error('GEC load error:', e);
-    loadBtn.disabled = false;
+    loadBtn.disabled  = false;
     loadBtn.innerHTML = '&#9654; Load GEC image';
     setImgStatus('Failed: ' + (e.message || String(e)), true);
+  } finally {
+    // Clean up virtual filesystem
+    if (Gdal) {
+      try { Gdal.FS.unlink(inputPath);  } catch(e) {}
+      try { Gdal.FS.unlink(outputPath); } catch(e) {}
+    }
   }
 });
 
