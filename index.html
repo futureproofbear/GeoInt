@@ -58,7 +58,7 @@
     .item-tag.sat  { border-color:#58a6ff40; color:var(--accent);  background:#58a6ff10; }
     .item-loading { font-size:11px; font-family:'IBM Plex Mono',monospace; color:var(--muted); padding:8px 14px; opacity:0.6; }
     .item-error { color:var(--danger) !important; opacity:0.8; }
-    #map { flex:1; }
+    #map { flex:1; position: relative; }
     #detail-panel { border-top:1px solid var(--border); background:var(--bg); flex-shrink:0; display:none; flex-direction:column; max-height:310px; }
     #detail-panel.visible { display:flex; }
     #detail-header { display:flex; justify-content:space-between; align-items:center; padding:8px 14px 6px; flex-shrink:0; }
@@ -81,17 +81,17 @@
     .img-btn.remove:hover { background:#f8514915; border-color:var(--danger); }
     #img-status { font-size:10px; font-family:'IBM Plex Mono',monospace; color:var(--muted); }
 
-    /* Transparency Slider Styles */
+    /* Opacity Control Styles */
     #opacity-control {
-      position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);
+      position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
       background: var(--surface); border: 1px solid var(--border);
-      padding: 10px 15px; border-radius: 8px; z-index: 1000;
+      padding: 10px 16px; border-radius: 8px; z-index: 1000;
       display: none; align-items: center; gap: 12px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+      box-shadow: 0 4px 15px rgba(0,0,0,0.5);
     }
     #opacity-control.visible { display: flex; }
-    #opacity-control label { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--accent); text-transform: uppercase; }
-    #opacity-slider { cursor: pointer; width: 150px; accent-color: var(--accent); }
+    #opacity-control label { font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--accent); text-transform:uppercase; letter-spacing:0.05em; }
+    #opacity-slider { cursor: pointer; width: 140px; accent-color: var(--accent); }
   </style>
 </head>
 <body>
@@ -129,12 +129,12 @@
       </div>
     </div>
   </div>
-  <div id="map"></div>
-</div>
-
-<div id="opacity-control">
-  <label>SAR Opacity</label>
-  <input type="range" id="opacity-slider" min="0" max="1" step="0.01" value="0.9">
+  <div id="map">
+    <div id="opacity-control">
+      <label>SAR Opacity</label>
+      <input type="range" id="opacity-slider" min="0" max="1" step="0.01" value="0.9">
+    </div>
+  </div>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
@@ -368,7 +368,7 @@ function updateCount() {
 document.getElementById('location-filter').addEventListener('change', filterItems);
 document.getElementById('search-input').addEventListener('input', filterItems);
 
-// ── GEC IMAGE LOADER ─────────────────────────────────────
+// ── GEC IMAGE LOADER ───────────────────────────────────────────
 
 function buildGecUrl(item) {
   var prefix = item.entry.s3_prefix.replace('s3://umbra-open-data-catalog/', '').replace(/\\/g, '/');
@@ -394,16 +394,16 @@ function removeGecImage() {
 
 document.getElementById('remove-img-btn').addEventListener('click', removeGecImage);
 
-// OPACITY SLIDER LOGIC
-document.getElementById('opacity-slider').addEventListener('input', function() {
+// Transparency Slider Event
+document.getElementById('opacity-slider').addEventListener('input', function(e) {
   if (gecImageLayer) {
-    gecImageLayer.setOpacity(this.value);
+    gecImageLayer.setOpacity(e.target.value);
   }
 });
 
 document.getElementById('load-img-btn').addEventListener('click', async function() {
   if (!activeItem) return;
-  var item = activeItem;
+  var item    = activeItem;
   var loadBtn = document.getElementById('load-img-btn');
   var remBtn  = document.getElementById('remove-img-btn');
 
@@ -423,8 +423,7 @@ document.getElementById('load-img-btn').addEventListener('click', async function
     setImgStatus('Fetching GeoTIFF...');
     var response = await fetch(url);
     if (!response.ok) throw new Error('HTTP ' + response.status);
-    var buffer = await response.arrayBuffer();
-    var tifFile = new File([buffer], 'input.tif', { type: 'image/tiff' });
+    var tifFile = new File([await response.arrayBuffer()], 'input.tif', { type: 'image/tiff' });
 
     var srcDataset = (await Gdal.open([tifFile])).datasets[0];
 
@@ -451,13 +450,13 @@ document.getElementById('load-img-btn').addEventListener('click', async function
     var south  = Math.min.apply(null, allLat), north = Math.max.apply(null, allLat);
 
     setImgStatus('Converting to PNG...');
-    // ADDED '-dstnodata', '0' to remove black borders
+    // '-dstnodata 0' removes the black padding by making pixel value 0 transparent
     var pngPath = await Gdal.gdal_translate(warpedDsObj, [
       '-of', 'PNG',
       '-ot', 'Byte',
       '-scale',
       '-outsize', '1024', '0',
-      '-dstnodata', '0' 
+      '-dstnodata', '0'
     ]);
     await Gdal.close(warpedDsObj);
 
@@ -467,8 +466,8 @@ document.getElementById('load-img-btn').addEventListener('click', async function
     var blobUrl = URL.createObjectURL(blob);
     var bounds  = L.latLngBounds([[south, west], [north, east]]);
 
-    var currentOpacity = document.getElementById('opacity-slider').value;
-    gecImageLayer = L.imageOverlay(blobUrl, bounds, { opacity: currentOpacity, interactive: false });
+    var initialOpacity = document.getElementById('opacity-slider').value;
+    gecImageLayer = L.imageOverlay(blobUrl, bounds, { opacity: initialOpacity, interactive: false });
     gecImageLayer.addTo(map);
     map.fitBounds(item.layer.getBounds(), { padding: [40, 40] });
 
@@ -482,7 +481,7 @@ document.getElementById('load-img-btn').addEventListener('click', async function
     console.error('GEC load error:', e);
     loadBtn.disabled  = false;
     loadBtn.innerHTML = '&#9654; Load GEC image';
-    setImgStatus('Error: ' + (e.message || String(e)), true);
+    setImgStatus('Failed: ' + (e.message || String(e)), true);
   }
 });
 
