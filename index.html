@@ -80,6 +80,18 @@
     .img-btn.remove { color:var(--danger); border-color:#f8514960; display:none; }
     .img-btn.remove:hover { background:#f8514915; border-color:var(--danger); }
     #img-status { font-size:10px; font-family:'IBM Plex Mono',monospace; color:var(--muted); }
+
+    /* Transparency Slider Styles */
+    #opacity-control {
+      position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);
+      background: var(--surface); border: 1px solid var(--border);
+      padding: 10px 15px; border-radius: 8px; z-index: 1000;
+      display: none; align-items: center; gap: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+    }
+    #opacity-control.visible { display: flex; }
+    #opacity-control label { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--accent); text-transform: uppercase; }
+    #opacity-slider { cursor: pointer; width: 150px; accent-color: var(--accent); }
   </style>
 </head>
 <body>
@@ -118,6 +130,11 @@
     </div>
   </div>
   <div id="map"></div>
+</div>
+
+<div id="opacity-control">
+  <label>SAR Opacity</label>
+  <input type="range" id="opacity-slider" min="0" max="1" step="0.01" value="0.9">
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
@@ -246,7 +263,7 @@ async function loadCatalog() {
         var item = { entry: entry, layer: layer, collect: collect, json: json, row: row, checkbox: checkbox };
         allItems.push(item);
         checkbox.addEventListener('change', function() {
-          if (checkbox.checked) map.addLayer(layer); else map.removeLayer(i.layer);
+          if (checkbox.checked) map.addLayer(layer); else map.removeLayer(layer);
           updateCount();
         });
         row.querySelector('.item-body').addEventListener('click', function() {
@@ -351,7 +368,7 @@ function updateCount() {
 document.getElementById('location-filter').addEventListener('change', filterItems);
 document.getElementById('search-input').addEventListener('input', filterItems);
 
-// ── GEC IMAGE LOADER — FIXED GDAL WORKFLOW ───────────────────────────────────
+// ── GEC IMAGE LOADER ─────────────────────────────────────
 
 function buildGecUrl(item) {
   var prefix = item.entry.s3_prefix.replace('s3://umbra-open-data-catalog/', '').replace(/\\/g, '/');
@@ -369,12 +386,20 @@ function setImgStatus(msg, isError) {
 function removeGecImage() {
   if (gecImageLayer) { map.removeLayer(gecImageLayer); gecImageLayer = null; }
   document.getElementById('remove-img-btn').style.display = 'none';
+  document.getElementById('opacity-control').classList.remove('visible');
   var lb = document.getElementById('load-img-btn');
   lb.disabled = false; lb.innerHTML = '&#9654; Load GEC image';
   setImgStatus('');
 }
 
 document.getElementById('remove-img-btn').addEventListener('click', removeGecImage);
+
+// OPACITY SLIDER LOGIC
+document.getElementById('opacity-slider').addEventListener('input', function() {
+  if (gecImageLayer) {
+    gecImageLayer.setOpacity(this.value);
+  }
+});
 
 document.getElementById('load-img-btn').addEventListener('click', async function() {
   if (!activeItem) return;
@@ -401,10 +426,8 @@ document.getElementById('load-img-btn').addEventListener('click', async function
     var buffer = await response.arrayBuffer();
     var tifFile = new File([buffer], 'input.tif', { type: 'image/tiff' });
 
-    // 1. Open source file
     var srcDataset = (await Gdal.open([tifFile])).datasets[0];
 
-    // 2. gdalwarp to EPSG:4326
     setImgStatus('Warping to EPSG:4326...');
     var warpedPath = await Gdal.gdalwarp(srcDataset, [
       '-of', 'GTiff',
@@ -414,7 +437,6 @@ document.getElementById('load-img-btn').addEventListener('click', async function
     ]);
     await Gdal.close(srcDataset);
 
-    // 3. Open warped path to extract coordinates
     setImgStatus('Extracting metadata...');
     var warpedBytes = await Gdal.getFileBytes(warpedPath);
     var warpedFile = new File([warpedBytes], 'warped.tif');
@@ -428,28 +450,30 @@ document.getElementById('load-img-btn').addEventListener('click', async function
     var west   = Math.min.apply(null, allLng), east  = Math.max.apply(null, allLng);
     var south  = Math.min.apply(null, allLat), north = Math.max.apply(null, allLat);
 
-    // 4. gdal_translate to PNG
     setImgStatus('Converting to PNG...');
+    // ADDED '-dstnodata', '0' to remove black borders
     var pngPath = await Gdal.gdal_translate(warpedDsObj, [
       '-of', 'PNG',
       '-ot', 'Byte',
       '-scale',
-      '-outsize', '1024', '0'
+      '-outsize', '1024', '0',
+      '-dstnodata', '0' 
     ]);
     await Gdal.close(warpedDsObj);
 
-    // 5. Render to Leaflet
     setImgStatus('Rendering...');
     var pngBytes = await Gdal.getFileBytes(pngPath);
     var blob    = new Blob([pngBytes], { type: 'image/png' });
     var blobUrl = URL.createObjectURL(blob);
     var bounds  = L.latLngBounds([[south, west], [north, east]]);
 
-    gecImageLayer = L.imageOverlay(blobUrl, bounds, { opacity: 0.9, interactive: false });
+    var currentOpacity = document.getElementById('opacity-slider').value;
+    gecImageLayer = L.imageOverlay(blobUrl, bounds, { opacity: currentOpacity, interactive: false });
     gecImageLayer.addTo(map);
     map.fitBounds(item.layer.getBounds(), { padding: [40, 40] });
 
     remBtn.style.display = 'inline-block';
+    document.getElementById('opacity-control').classList.add('visible');
     loadBtn.disabled     = false;
     loadBtn.innerHTML    = '&#9654; Reload GEC image';
     setImgStatus('GEC loaded ✓');
