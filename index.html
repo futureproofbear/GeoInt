@@ -602,7 +602,7 @@
     // HTTPS URL:  https://umbra-open-data-catalog.s3.us-west-2.amazonaws.com/sar-data/tasks/{location}/{uuid}/{dataset_name}/{dataset_name}_GEC.tif
     const prefix = item.entry.s3_prefix
       .replace('s3://umbra-open-data-catalog/', '')
-      .replace(/\/g, '/');
+      .replace(/\\/g, '/');
     const base = 'https://umbra-open-data-catalog.s3.us-west-2.amazonaws.com/';
     const filename = item.entry.dataset_name + '_GEC.tif';
     return base + prefix + filename;
