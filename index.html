@@ -32,7 +32,7 @@
       overflow: hidden;
     }
 
-    /* ── HEADER ── */
+    /* HEADER */
     #header {
       height: 48px;
       background: var(--surface);
@@ -79,10 +79,10 @@
     }
     @keyframes spin { to { transform: rotate(360deg); } }
 
-    /* ── LAYOUT ── */
+    /* LAYOUT */
     #body { display: flex; flex: 1; overflow: hidden; }
 
-    /* ── SIDEBAR ── */
+    /* SIDEBAR */
     #sidebar {
       width: var(--sidebar-w);
       background: var(--surface);
@@ -163,7 +163,7 @@
       margin-left: auto;
     }
 
-    /* list */
+    /* dataset list */
     #dataset-list { flex: 1; overflow-y: auto; overflow-x: hidden; }
     #dataset-list::-webkit-scrollbar { width: 4px; }
     #dataset-list::-webkit-scrollbar-track { background: transparent; }
@@ -244,30 +244,42 @@
     /* map */
     #map { flex: 1; }
 
-    /* detail panel */
+    /* DETAIL PANEL — scrollable rows, fixed button row below */
     #detail-panel {
       border-top: 1px solid var(--border);
       background: var(--bg);
-      padding: 10px 14px;
       flex-shrink: 0;
       display: none;
-      max-height: 210px;
-      overflow-y: auto;
+      flex-direction: column;
+      max-height: 300px;
     }
-    #detail-panel.visible { display: block; }
-    #detail-panel h3 {
+    #detail-panel.visible { display: flex; }
+
+    #detail-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 14px 6px;
+      flex-shrink: 0;
+    }
+    #detail-header h3 {
       font-size: 11px;
       font-family: 'IBM Plex Mono', monospace;
       color: var(--accent);
       text-transform: uppercase;
       letter-spacing: 0.08em;
-      margin-bottom: 6px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
     }
     #detail-close { cursor: pointer; color: var(--muted); font-size: 14px; line-height: 1; }
     #detail-close:hover { color: var(--text); }
+
+    #detail-rows {
+      overflow-y: auto;
+      flex: 1;
+      padding: 0 14px 6px;
+    }
+    #detail-rows::-webkit-scrollbar { width: 3px; }
+    #detail-rows::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
     .detail-row {
       display: flex;
       justify-content: space-between;
@@ -277,26 +289,17 @@
       border-bottom: 1px solid rgba(48,54,61,0.4);
     }
     .detail-row:last-child { border-bottom: none; }
-    .detail-key { color: var(--muted); }
-    .detail-val { color: var(--text); text-align: right; max-width: 58%; word-break: break-all; }
+    .detail-key { color: var(--muted); flex-shrink: 0; margin-right: 8px; }
+    .detail-val { color: var(--text); text-align: right; word-break: break-all; }
 
-    /* load bar */
-    #load-bar {
-      position: absolute;
-      bottom: 0; left: 0;
-      height: 2px;
-      background: var(--accent);
-      width: 0%;
-      transition: width 0.3s;
-      z-index: 999;
-    }
-
-    /* image load button row */
+    /* image button row — always visible, not scrolled */
     #img-btn-row {
       display: flex;
       gap: 6px;
       align-items: center;
-      margin-top: 10px;
+      padding: 8px 14px;
+      border-top: 1px solid var(--border);
+      flex-shrink: 0;
       flex-wrap: wrap;
     }
     .img-btn {
@@ -318,6 +321,17 @@
       font-size: 10px;
       font-family: 'IBM Plex Mono', monospace;
       color: var(--muted);
+    }
+
+    /* load bar */
+    #load-bar {
+      position: absolute;
+      bottom: 0; left: 0;
+      height: 2px;
+      background: var(--accent);
+      width: 0%;
+      transition: width 0.3s;
+      z-index: 999;
     }
   </style>
 </head>
@@ -345,7 +359,10 @@
     </div>
     <div id="dataset-list"></div>
     <div id="detail-panel">
-      <h3>Collect details <span id="detail-close" title="Close">✕</span></h3>
+      <div id="detail-header">
+        <h3>Collect details</h3>
+        <span id="detail-close" title="Close">&#10005;</span>
+      </div>
       <div id="detail-rows"></div>
       <div id="img-btn-row">
         <button class="img-btn load" id="load-img-btn">&#9654; Load GEC image</button>
@@ -358,12 +375,15 @@
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/proj4@2.9.0/dist/proj4.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/proj4@2.9.0/dist/proj4.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/georaster@1.6.0/dist/georaster.browser.bundle.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/georaster-layer-for-leaflet@3.10.0/dist/georaster-layer-for-leaflet.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/georaster-layer-for-leaflet@2.6.0/dist/georaster-layer-for-leaflet.min.js"></script>
 <script>
+  // MAP
   const map = L.map('map', { zoomControl: true }).setView([0, 0], 2);
   L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-    attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> © <a href="https://carto.com/">CARTO</a>',
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/">CARTO</a>',
     maxZoom: 19
   }).addTo(map);
 
@@ -378,24 +398,29 @@
   let allItems = [];
   let activeItem = null;
 
-  // sidebar toggle
+  // GEC image state
+  let currentGeoRasterLayer = null;
+
+  // SIDEBAR TOGGLE
   document.getElementById('toggle-sidebar').addEventListener('click', () => {
     document.getElementById('sidebar').classList.toggle('collapsed');
     setTimeout(() => map.invalidateSize(), 220);
   });
 
-  // reload button
+  // RELOAD BUTTON
   document.getElementById('reload-btn').addEventListener('click', async () => {
     const btn = document.getElementById('reload-btn');
     btn.classList.add('spinning');
     btn.disabled = true;
 
+    removeCurrentImage();
     allItems.forEach(item => { if (map.hasLayer(item.layer)) map.removeLayer(item.layer); });
     allItems = [];
     activeItem = null;
     document.getElementById('dataset-list').innerHTML = '';
     document.getElementById('detail-panel').classList.remove('visible');
-    document.getElementById('load-bar').style.cssText = 'opacity:1;width:0%';
+    document.getElementById('load-bar').style.opacity = '1';
+    document.getElementById('load-bar').style.width = '0%';
     document.getElementById('location-filter').value = '';
     document.getElementById('search-input').value = '';
 
@@ -406,12 +431,12 @@
     btn.disabled = false;
   });
 
+  // LOAD CATALOG
   async function loadCatalog() {
     const res = await fetch('catalog/catalog_index.json?t=' + Date.now());
     const entries = await res.json();
     const total = entries.length;
 
-    // rebuild location options
     const sel = document.getElementById('location-filter');
     while (sel.options.length > 1) sel.remove(1);
     [...new Set(entries.map(e => e.location))].sort().forEach(loc => {
@@ -426,59 +451,58 @@
     let loaded = 0, failed = 0, cbIdx = 0;
 
     for (const entry of entries) {
-      const relPath = encodeURI(entry.json_saved.replace(/\\/g,'/').replace(/^\.\//,''));
+      const relPath = encodeURI(
+        entry.json_saved.replace(/\\/g, '/').replace(/^\.\//, '')
+      );
 
       const row = document.createElement('div');
       row.className = 'dataset-item';
-      row.innerHTML = `<div class="item-loading">⏳ ${entry.dataset_name}</div>`;
+      row.innerHTML = '<div class="item-loading">&#8987; ' + entry.dataset_name + '</div>';
       listEl.appendChild(row);
 
       try {
         const r = await fetch(relPath + '?t=' + Date.now());
         if (!r.ok) throw new Error(r.status);
         const json = await r.json();
-        const collect = json.collects?.[0];
-        if (!collect?.footprintPolygonLla) throw new Error('no footprint');
+        const collect = json.collects && json.collects[0];
+        if (!collect || !collect.footprintPolygonLla) throw new Error('no footprint');
 
-        const latLngs = collect.footprintPolygonLla.coordinates[0].map(c => [c[1], c[0]]);
+        const latLngs = collect.footprintPolygonLla.coordinates[0].map(function(c) { return [c[1], c[0]]; });
         const color   = getColor(entry.location);
-        const layer   = L.polygon(latLngs, { color, weight: 1.5, fillColor: color, fillOpacity: 0.15 });
-        // NOT added to map — checkbox controls visibility
+        const layer   = L.polygon(latLngs, { color: color, weight: 1.5, fillColor: color, fillOpacity: 0.15 });
 
-        allBounds.push(...latLngs);
+        allBounds.push.apply(allBounds, latLngs);
 
-        const date = collect.startAtUTC ? collect.startAtUTC.slice(0,10) : '—';
+        const date = collect.startAtUTC ? collect.startAtUTC.slice(0, 10) : '—';
         const sat  = json.umbraSatelliteName || '—';
         const band = collect.radarBand || '—';
         const cbId = 'cb-' + (cbIdx++);
 
-        row.innerHTML = `
-          <div class="item-check-wrap">
-            <input type="checkbox" id="${cbId}">
-            <label for="${cbId}" style="border-color:${color}"></label>
-          </div>
-          <div class="item-body">
-            <div class="item-location">${entry.location}</div>
-            <div class="item-name">${entry.dataset_name}</div>
-            <div class="item-meta">
-              <span class="item-tag date">${date}</span>
-              <span class="item-tag sat">${sat}</span>
-              <span class="item-tag band">Band ${band}</span>
-            </div>
-          </div>`;
+        row.innerHTML =
+          '<div class="item-check-wrap">' +
+            '<input type="checkbox" id="' + cbId + '">' +
+            '<label for="' + cbId + '" style="border-color:' + color + '"></label>' +
+          '</div>' +
+          '<div class="item-body">' +
+            '<div class="item-location">' + entry.location + '</div>' +
+            '<div class="item-name">' + entry.dataset_name + '</div>' +
+            '<div class="item-meta">' +
+              '<span class="item-tag date">' + date + '</span>' +
+              '<span class="item-tag sat">' + sat + '</span>' +
+              '<span class="item-tag band">Band ' + band + '</span>' +
+            '</div>' +
+          '</div>';
 
         const checkbox = row.querySelector('input[type=checkbox]');
-        const item = { entry, layer, collect, json, row, checkbox };
+        const item = { entry: entry, layer: layer, collect: collect, json: json, row: row, checkbox: checkbox };
         allItems.push(item);
 
-        // checkbox: toggle footprint
-        checkbox.addEventListener('change', () => {
-          checkbox.checked ? map.addLayer(layer) : map.removeLayer(layer);
+        checkbox.addEventListener('change', function() {
+          if (checkbox.checked) map.addLayer(layer); else map.removeLayer(layer);
           updateCount();
         });
 
-        // row body: click to select + auto-check
-        row.querySelector('.item-body').addEventListener('click', () => {
+        row.querySelector('.item-body').addEventListener('click', function() {
           if (!checkbox.checked) {
             checkbox.checked = true;
             map.addLayer(layer);
@@ -487,28 +511,28 @@
           selectItem(item);
         });
 
-        // polygon click
-        layer.on('click', () => selectItem(item));
+        layer.on('click', function() { selectItem(item); });
 
         loaded++;
       } catch(e) {
-        row.innerHTML = `<div class="item-loading item-error">✗ ${entry.dataset_name}</div>`;
+        row.innerHTML = '<div class="item-loading item-error">&#10007; ' + entry.dataset_name + '</div>';
         failed++;
       }
 
       loadBar.style.width = ((loaded + failed) / total * 100) + '%';
-      document.getElementById('status').textContent = `Loading… ${loaded + failed}/${total}`;
+      document.getElementById('status').textContent = 'Loading… ' + (loaded + failed) + '/' + total;
     }
 
     if (allBounds.length) map.fitBounds(allBounds);
     loadBar.style.width = '100%';
-    setTimeout(() => { loadBar.style.opacity = '0'; }, 600);
+    setTimeout(function() { loadBar.style.opacity = '0'; }, 600);
 
     document.getElementById('status').textContent =
-      `${loaded} datasets` + (failed ? ` · ${failed} failed` : '');
+      loaded + ' datasets' + (failed ? ' · ' + failed + ' failed' : '');
     updateCount();
   }
 
+  // SELECT ITEM
   function selectItem(item) {
     if (activeItem) {
       activeItem.row.classList.remove('active');
@@ -520,29 +544,39 @@
     item.layer.setStyle({ weight: 2.5, fillOpacity: 0.35 });
     map.fitBounds(item.layer.getBounds(), { padding: [60, 60] });
 
-    const c = item.collect;
-    const rows = [
+    var c = item.collect;
+    var rows = [
       ['Dataset',      item.entry.dataset_name],
       ['Location',     item.entry.location],
       ['Date / time',  c.startAtUTC ? c.startAtUTC.slice(0,19).replace('T',' ') + ' UTC' : '—'],
       ['Satellite',    item.json.umbraSatelliteName || '—'],
       ['Imaging mode', item.json.imagingMode || '—'],
-      ['Polarisation', c.polarizations?.join(', ') || '—'],
+      ['Polarisation', c.polarizations ? c.polarizations.join(', ') : '—'],
       ['Track',        c.satelliteTrack || '—'],
-      ['Incidence',    c.angleIncidenceDegrees != null ? c.angleIncidenceDegrees.toFixed(4)+'°' : '—'],
-      ['Squint',       c.angleSquintDegrees    != null ? c.angleSquintDegrees.toFixed(4)+'°'    : '—'],
-      ['Az res.',      c.maxGroundResolution ? c.maxGroundResolution.azimuthMeters.toFixed(3)+' m' : '—'],
-      ['Rng res.',     c.maxGroundResolution ? c.maxGroundResolution.rangeMeters.toFixed(3)+' m'   : '—'],
-      ['UUID',         item.entry.uuid],
+      ['Incidence',    c.angleIncidenceDegrees != null ? c.angleIncidenceDegrees.toFixed(4) + '°' : '—'],
+      ['Squint',       c.angleSquintDegrees    != null ? c.angleSquintDegrees.toFixed(4)    + '°' : '—'],
+      ['Az res.',      c.maxGroundResolution ? c.maxGroundResolution.azimuthMeters.toFixed(3) + ' m' : '—'],
+      ['Rng res.',     c.maxGroundResolution ? c.maxGroundResolution.rangeMeters.toFixed(3)   + ' m' : '—'],
+      ['UUID',         item.entry.uuid]
     ];
-    document.getElementById('detail-rows').innerHTML = rows.map(([k,v]) =>
-      `<div class="detail-row"><span class="detail-key">${k}</span><span class="detail-val">${v}</span></div>`
-    ).join('');
+
+    document.getElementById('detail-rows').innerHTML = rows.map(function(r) {
+      return '<div class="detail-row"><span class="detail-key">' + r[0] + '</span><span class="detail-val">' + r[1] + '</span></div>';
+    }).join('');
+
+    // reset image button state for new selection
+    document.getElementById('load-img-btn').disabled = false;
+    document.getElementById('load-img-btn').textContent = '\u25B6 Load GEC image';
+    document.getElementById('remove-img-btn').style.display = 'none';
+    setImgStatus('');
+
     document.getElementById('detail-panel').classList.add('visible');
   }
 
-  document.getElementById('detail-close').addEventListener('click', () => {
+  // DETAIL CLOSE
+  document.getElementById('detail-close').addEventListener('click', function() {
     document.getElementById('detail-panel').classList.remove('visible');
+    removeCurrentImage();
     if (activeItem) {
       activeItem.row.classList.remove('active');
       activeItem.layer.setStyle({ weight: 1.5, fillOpacity: 0.15 });
@@ -550,25 +584,31 @@
     }
   });
 
+  // BULK CONTROLS
   function visibleItems() {
-    return allItems.filter(i => i.row.style.display !== 'none');
+    return allItems.filter(function(i) { return i.row.style.display !== 'none'; });
   }
 
-  document.getElementById('check-all').addEventListener('click', () => {
-    visibleItems().forEach(i => { if (!i.checkbox.checked) { i.checkbox.checked = true; map.addLayer(i.layer); } });
+  document.getElementById('check-all').addEventListener('click', function() {
+    visibleItems().forEach(function(i) {
+      if (!i.checkbox.checked) { i.checkbox.checked = true; map.addLayer(i.layer); }
+    });
     updateCount();
   });
 
-  document.getElementById('uncheck-all').addEventListener('click', () => {
-    visibleItems().forEach(i => { if (i.checkbox.checked) { i.checkbox.checked = false; map.removeLayer(i.layer); } });
+  document.getElementById('uncheck-all').addEventListener('click', function() {
+    visibleItems().forEach(function(i) {
+      if (i.checkbox.checked) { i.checkbox.checked = false; map.removeLayer(i.layer); }
+    });
     updateCount();
   });
 
+  // FILTER + SEARCH
   function filterItems() {
-    const loc = document.getElementById('location-filter').value;
-    const q   = document.getElementById('search-input').value.toLowerCase();
-    allItems.forEach(i => {
-      const show = (!loc || i.entry.location === loc) && (!q || i.entry.dataset_name.toLowerCase().includes(q));
+    var loc = document.getElementById('location-filter').value;
+    var q   = document.getElementById('search-input').value.toLowerCase();
+    allItems.forEach(function(i) {
+      var show = (!loc || i.entry.location === loc) && (!q || i.entry.dataset_name.toLowerCase().indexOf(q) !== -1);
       i.row.style.display = show ? '' : 'none';
       if (!show && i.checkbox.checked) map.removeLayer(i.layer);
       if ( show && i.checkbox.checked) map.addLayer(i.layer);
@@ -577,39 +617,29 @@
   }
 
   function updateCount() {
-    const vis     = visibleItems().length;
-    const checked = visibleItems().filter(i => i.checkbox.checked).length;
-    const total   = allItems.length;
-    let txt = vis === total ? `${total} datasets` : `${vis}/${total}`;
-    if (checked > 0) txt += ` · ${checked} shown`;
+    var vis     = visibleItems().length;
+    var checked = visibleItems().filter(function(i) { return i.checkbox.checked; }).length;
+    var total   = allItems.length;
+    var txt = (vis === total) ? (total + ' datasets') : (vis + '/' + total);
+    if (checked > 0) txt += ' · ' + checked + ' shown';
     document.getElementById('dataset-count').textContent = txt;
   }
 
   document.getElementById('location-filter').addEventListener('change', filterItems);
   document.getElementById('search-input').addEventListener('input', filterItems);
 
-  loadCatalog().catch(e => {
-    document.getElementById('status').textContent = 'Error loading catalog';
-    console.error(e);
-  });
-
-  // ── GEC IMAGE LOADER ──
-  let currentGeoRasterLayer = null;
-  let currentImageItem = null;
-
+  // GEC IMAGE LOADER
   function buildGecUrl(item) {
-    // s3_prefix: s3://umbra-open-data-catalog/sar-data/tasks/{location}/{uuid}/{dataset_name}/
-    // HTTPS URL:  https://umbra-open-data-catalog.s3.us-west-2.amazonaws.com/sar-data/tasks/{location}/{uuid}/{dataset_name}/{dataset_name}_GEC.tif
-    const prefix = item.entry.s3_prefix
+    var prefix = item.entry.s3_prefix
       .replace('s3://umbra-open-data-catalog/', '')
       .replace(/\\/g, '/');
-    const base = 'https://umbra-open-data-catalog.s3.us-west-2.amazonaws.com/';
-    const filename = item.entry.dataset_name + '_GEC.tif';
-    return base + prefix + filename;
+    var encodedPrefix = prefix.split('/').map(function(seg) { return encodeURIComponent(seg); }).join('/');
+    var filename = encodeURIComponent(item.entry.dataset_name) + '_GEC.tif';
+    return 'https://umbra-open-data-catalog.s3.us-west-2.amazonaws.com/' + encodedPrefix + filename;
   }
 
   function setImgStatus(msg, isError) {
-    const el = document.getElementById('img-status');
+    var el = document.getElementById('img-status');
     el.textContent = msg;
     el.style.color = isError ? 'var(--danger)' : 'var(--muted)';
   }
@@ -619,60 +649,75 @@
       map.removeLayer(currentGeoRasterLayer);
       currentGeoRasterLayer = null;
     }
-    currentImageItem = null;
     document.getElementById('remove-img-btn').style.display = 'none';
-    document.getElementById('load-img-btn').disabled = false;
+    var loadBtn = document.getElementById('load-img-btn');
+    loadBtn.disabled = false;
+    loadBtn.textContent = '\u25B6 Load GEC image';
     setImgStatus('');
   }
 
   document.getElementById('remove-img-btn').addEventListener('click', removeCurrentImage);
 
-  document.getElementById('load-img-btn').addEventListener('click', async () => {
+  document.getElementById('load-img-btn').addEventListener('click', async function() {
     if (!activeItem) return;
 
-    const item = activeItem;
-    const loadBtn   = document.getElementById('load-img-btn');
-    const removeBtn = document.getElementById('remove-img-btn');
+    var item      = activeItem;
+    var loadBtn   = document.getElementById('load-img-btn');
+    var removeBtn = document.getElementById('remove-img-btn');
 
-    // remove any existing image first
     removeCurrentImage();
-
     loadBtn.disabled = true;
-    setImgStatus('Fetching COG overview…');
+    loadBtn.textContent = 'Loading\u2026';
+    setImgStatus('Fetching COG overview\u2026');
 
-    const url = buildGecUrl(item);
+    var url = buildGecUrl(item);
+    console.log('GEC URL:', url);
 
     try {
-      const georaster = await parseGeoraster(url);
+      var georaster = await parseGeoraster(url);
 
-      // Normalise SAR amplitude to 0–255 for greyscale display
-      // Use a simple linear stretch on the first band
+      console.log('EPSG:', georaster.projection);
+      console.log('Native bounds:', georaster.xmin, georaster.ymin, georaster.xmax, georaster.ymax);
+
+      // Adaptive sqrt stretch using georaster metadata min/max
+      var dataMin = (georaster.mins && georaster.mins[0] != null) ? georaster.mins[0] : 0;
+      var dataMax = (georaster.maxs && georaster.maxs[0] != null) ? georaster.maxs[0] : 3000;
+      var sqrtMax = Math.sqrt(Math.max(dataMax, 1));
+
+      // proj4 loaded globally — georaster-layer-for-leaflet uses it automatically
+      // to reproject from the GeoTIFF native CRS (UTM) to EPSG:4326
       currentGeoRasterLayer = new GeoRasterLayer({
-        georaster,
-        opacity: 0.9,
-        pixelValuesToColorFn: values => {
-          const v = values[0];
-          if (v === null || v === undefined || isNaN(v)) return null;
-          // Clip to [0, 3000] then normalise — adjust upper bound for your data range
-          const clipped = Math.min(Math.max(v, 0), 3000);
-          const norm = Math.round((clipped / 3000) * 255);
-          return `rgb(${norm},${norm},${norm})`;
+        georaster:  georaster,
+        opacity:    0.9,
+        pixelValuesToColorFn: function(values) {
+          var v = values[0];
+          if (v == null || isNaN(v) || v <= dataMin) return null;
+          var norm = Math.min(Math.round((Math.sqrt(v) / sqrtMax) * 255), 255);
+          return 'rgb(' + norm + ',' + norm + ',' + norm + ')';
         },
         resolution: 256
       });
 
       currentGeoRasterLayer.addTo(map);
-      currentImageItem = item;
 
-      map.fitBounds(currentGeoRasterLayer.getBounds(), { padding: [40, 40] });
+      // Fit to the footprint polygon — always georeferenced correctly
+      map.fitBounds(item.layer.getBounds(), { padding: [40, 40] });
+
       removeBtn.style.display = 'inline-block';
       loadBtn.disabled = false;
-      setImgStatus('GEC loaded ✓');
+      loadBtn.textContent = '\u25B6 Reload GEC image';
+      setImgStatus('GEC loaded \u2713');
     } catch(e) {
       console.error('GEC load error:', e);
       loadBtn.disabled = false;
-      setImgStatus('Failed to load: ' + (e.message || e), true);
+      loadBtn.textContent = '\u25B6 Load GEC image';
+      setImgStatus('Failed: ' + (e.message || String(e)), true);
     }
+  });
+  // INIT
+  loadCatalog().catch(function(e) {
+    document.getElementById('status').textContent = 'Error loading catalog';
+    console.error(e);
   });
 </script>
 </body>
