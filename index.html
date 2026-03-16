@@ -411,45 +411,45 @@ document.getElementById('load-img-btn').addEventListener('click', async function
       useWorker: false
     });
 
-    // 2. Fetch GeoTIFF and wrap as File for Gdal.open()
+    // 2. Fetch GeoTIFF and open with GDAL
     setImgStatus('Fetching GeoTIFF...');
     var response = await fetch(url);
     if (!response.ok) throw new Error('HTTP ' + response.status);
     var tifFile = new File([await response.arrayBuffer()], 'input.tif', { type: 'image/tiff' });
     console.log('Fetched', tifFile.size, 'bytes');
 
-    // 3. Open with GDAL
-    setImgStatus('Opening with GDAL...');
-    var openResult = await Gdal.open([tifFile]);
-    var srcDataset  = openResult.datasets[0];
+    var srcDataset = (await Gdal.open([tifFile])).datasets[0];
+    var srcInfo    = await Gdal.getInfo(srcDataset);
+    console.log('Source info:', JSON.stringify(srcInfo));
 
-    // 4. gdalwarp: reproject UTM -> EPSG:4326, output as GeoTIFF
-    // NOTE: gdalwarp only supports -of, -t_srs, -s_srs, -te, -tr, -r, -overwrite
-    // -scale, -ts, -outsize, -ot are gdal_translate options — not valid here
-    setImgStatus('Warping UTM to EPSG:4326...');
-    var warpedDataset = await Gdal.gdalwarp(srcDataset, [
+    // 3. gdalwarp: reproject UTM -> EPSG:4326, output GeoTIFF
+    // Returns a file PATH (string), not a dataset object
+    setImgStatus('Warping to EPSG:4326...');
+    var warpedPath = await Gdal.gdalwarp(srcDataset, [
       '-of', 'GTiff',
       '-t_srs', 'EPSG:4326',
       '-r', 'bilinear',
       '-overwrite'
     ]);
     await Gdal.close(srcDataset);
+    console.log('Warped file path:', warpedPath);
 
-    // 5. Get warped dataset info — corners are now in EPSG:4326 degrees
-    var warpedInfo = await Gdal.getInfo(warpedDataset);
+    // 4. Open the warped GeoTIFF to read its WGS84 corners
+    var warpedDataset = (await Gdal.open([warpedPath])).datasets[0];
+    var warpedInfo    = await Gdal.getInfo(warpedDataset);
     console.log('Warped info:', JSON.stringify(warpedInfo));
-    var wc    = warpedInfo.corners;
-    var allLng = wc.map(function(c){return c[0];});
-    var allLat = wc.map(function(c){return c[1];});
-    var west  = Math.min.apply(null, allLng), east  = Math.max.apply(null, allLng);
-    var south = Math.min.apply(null, allLat), north = Math.max.apply(null, allLat);
+
+    var wc     = warpedInfo.corners;  // [[lng,lat], ...] now in EPSG:4326
+    var allLng = wc.map(function(c) { return c[0]; });
+    var allLat = wc.map(function(c) { return c[1]; });
+    var west   = Math.min.apply(null, allLng), east  = Math.max.apply(null, allLng);
+    var south  = Math.min.apply(null, allLat), north = Math.max.apply(null, allLat);
     console.log('WGS84 bounds:', west, south, east, north);
 
-    // 6. gdal_translate: convert warped GeoTIFF to 8-bit PNG at reduced resolution
-    // -scale auto-stretches min->max to 0->255
-    // -outsize limits resolution for browser display
+    // 5. gdal_translate: scale to 8-bit PNG at reduced resolution
+    // Also returns a file PATH (string)
     setImgStatus('Converting to PNG...');
-    var pngDataset = await Gdal.gdal_translate(warpedDataset, [
+    var pngPath = await Gdal.gdal_translate(warpedDataset, [
       '-of', 'PNG',
       '-ot', 'Byte',
       '-scale',
@@ -457,11 +457,13 @@ document.getElementById('load-img-btn').addEventListener('click', async function
     ]);
     await Gdal.close(warpedDataset);
 
-    // 7. Read PNG bytes, make blob URL, add Leaflet ImageOverlay
+    // 6. Open PNG dataset and read bytes
     setImgStatus('Rendering...');
-    var pngBytes = await Gdal.getFileBytes(pngDataset);
+    var pngDataset = (await Gdal.open([pngPath])).datasets[0];
+    var pngBytes   = await Gdal.getFileBytes(pngDataset);
     await Gdal.close(pngDataset);
 
+    // 7. Create blob URL and add Leaflet ImageOverlay
     var blob    = new Blob([pngBytes], { type: 'image/png' });
     var blobUrl = URL.createObjectURL(blob);
     var bounds  = L.latLngBounds([[south, west], [north, east]]);
