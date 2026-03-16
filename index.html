@@ -148,10 +148,6 @@ document.getElementById('map-mode-btn').addEventListener('click', function() {
 
 // ── GDAL INIT ──────────────────────────────────────────────────────────────
 // Initialise gdal3.js once at startup — loads WASM (~10 MB) in the background
-var gdalReady = initGdalJs({
-  path: 'https://cdn.jsdelivr.net/npm/gdal3.js@2.8.1/dist/package',
-  useWorker: false
-});
 
 // ── STATE ──────────────────────────────────────────────────────────────────
 var COLORS = ['#58a6ff','#3fb950','#f78166','#d2a8ff','#ffa657'];
@@ -406,62 +402,64 @@ document.getElementById('load-img-btn').addEventListener('click', async function
   var url = buildGecUrl(item);
   console.log('GEC URL:', url);
 
-  var Gdal = null;
 
   try {
-    // 1. Wait for GDAL WASM to be ready
+    // 1. Init GDAL — resolves when WASM is ready
     setImgStatus('Initialising GDAL...');
-    Gdal = await gdalReady;
+    var Gdal = await initGdalJs({ path: 'https://cdn.jsdelivr.net/npm/gdal3.js@2.8.1/dist/package', useWorker: false });
 
-    // 2. Fetch the GeoTIFF and wrap in a File object
-    // gdal3.js opens files via Gdal.open([File]) - no manual FS writes needed
+    // 2. Fetch the GeoTIFF bytes and create a File object
     setImgStatus('Fetching GeoTIFF...');
     var response = await fetch(url);
     if (!response.ok) throw new Error('HTTP ' + response.status);
-    var arrayBuffer = await response.arrayBuffer();
-    var tifFile = new File([arrayBuffer], 'input.tif', { type: 'image/tiff' });
-    console.log('Fetched', arrayBuffer.byteLength, 'bytes');
+    var tifFile = new File([await response.arrayBuffer()], 'input.tif', { type: 'image/tiff' });
+    console.log('Fetched', tifFile.size, 'bytes');
 
-    // 3. Open with GDAL to read metadata
-    setImgStatus('Reading metadata...');
+    // 3. Open with GDAL — pass File in array
+    setImgStatus('Opening with GDAL...');
     var openResult = await Gdal.open([tifFile]);
     var dataset    = openResult.datasets[0];
-    var info       = await Gdal.getInfo(dataset);
-    console.log('GDAL info:', JSON.stringify(info));
 
-    // Extract WGS84 bounding box - GDAL computes this regardless of source CRS
-    var ext    = info.wgs84Extent;
-    var coords = ext.coordinates[0];
+    // 4. Get dataset info — wgs84Extent gives bounds in EPSG:4326 regardless of source CRS
+    var info = await Gdal.getInfo(dataset);
+    console.log('GDAL info:', JSON.stringify(info));
+    var coords = info.wgs84Extent.coordinates[0];
     var lngs   = coords.map(function(c) { return c[0]; });
     var lats   = coords.map(function(c) { return c[1]; });
-    var west   = Math.min.apply(null, lngs);
-    var east   = Math.max.apply(null, lngs);
-    var south  = Math.min.apply(null, lats);
-    var north  = Math.max.apply(null, lats);
+    var west   = Math.min.apply(null, lngs), east  = Math.max.apply(null, lngs);
+    var south  = Math.min.apply(null, lats), north = Math.max.apply(null, lats);
     console.log('WGS84 bounds:', west, south, east, north);
 
-    // 4. gdal_translate: reproject to EPSG:4326, scale to 8-bit, output PNG
-    setImgStatus('Translating & warping...');
-    var outputDataset = await Gdal.gdal_translate(dataset, [
-      '-of', 'PNG',
-      '-ot', 'Byte',
-      '-scale',
+    // 5. gdalwarp: reproject to EPSG:4326 as GeoTIFF first (gdal_translate alone
+    //    cannot warp between projections — gdalwarp handles UTM -> WGS84 correctly)
+    setImgStatus('Warping to EPSG:4326...');
+    var warpedDataset = await Gdal.gdalwarp(dataset, [
+      '-of', 'GTiff',
       '-t_srs', 'EPSG:4326',
       '-r', 'bilinear',
-      '-outsize', '1024', '0'
+      '-outsize', '1024', '0',
+      '-overwrite'
     ]);
     await Gdal.close(dataset);
 
-    // 5. Read output PNG bytes and create blob URL
+    // 6. gdal_translate: scale to 8-bit PNG for display
+    setImgStatus('Converting to PNG...');
+    var pngDataset = await Gdal.gdal_translate(warpedDataset, [
+      '-of', 'PNG',
+      '-ot', 'Byte',
+      '-scale'
+    ]);
+    await Gdal.close(warpedDataset);
+
+    // 7. Get PNG bytes -> blob URL -> Leaflet ImageOverlay
     setImgStatus('Rendering...');
-    var pngBytes = await Gdal.getFileBytes(outputDataset);
-    await Gdal.close(outputDataset);
+    var pngBytes = await Gdal.getFileBytes(pngDataset);
+    await Gdal.close(pngDataset);
 
     var blob    = new Blob([pngBytes], { type: 'image/png' });
     var blobUrl = URL.createObjectURL(blob);
     var bounds  = L.latLngBounds([[south, west], [north, east]]);
 
-    // 6. Add as Leaflet ImageOverlay using GDAL-computed WGS84 bounds
     gecImageLayer = L.imageOverlay(blobUrl, bounds, { opacity: 0.9, interactive: false });
     gecImageLayer.addTo(map);
     map.fitBounds(item.layer.getBounds(), { padding: [40, 40] });
