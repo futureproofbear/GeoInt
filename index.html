@@ -69,15 +69,15 @@
     .item-opacity-ctrl input { flex:1; height:4px; accent-color: var(--accent2); cursor: pointer; }
 
     #map { flex:1; position: relative; }
-    #detail-panel { border-top:1px solid var(--border); background:var(--surface); flex-shrink:0; display:none; flex-direction:column; max-height:450px; }
+    #detail-panel { border-top:1px solid var(--border); background:var(--surface); flex-shrink:0; display:none; flex-direction:column; max-height:480px; }
     #detail-panel.visible { display:flex; }
     #detail-header { display:flex; justify-content:space-between; align-items:center; padding:8px 14px; border-bottom:1px solid var(--border); }
     #detail-header h3 { font-size:11px; font-family:'IBM Plex Mono',monospace; color:var(--accent); text-transform:uppercase; }
     #detail-rows { overflow-y:auto; flex:1; padding:10px 14px; }
-    .detail-row { display:flex; justify-content:space-between; font-size:11px; font-family:'IBM Plex Mono',monospace; padding:4px 0; border-bottom:1px solid rgba(48,54,61,0.3); }
+    .detail-row { display:flex; justify-content:space-between; font-size:11px; font-family:'IBM Plex Mono',monospace; padding:5px 0; border-bottom:1px solid rgba(48,54,61,0.3); }
     .detail-row:last-child { border-bottom:none; }
-    .detail-key { color:var(--muted); text-transform:uppercase; font-size:10px; }
-    .detail-val { color:var(--text); text-align:right; word-break:break-all; padding-left:12px; }
+    .detail-key { color:var(--muted); text-transform:uppercase; font-size:9px; letter-spacing: 0.05em; padding-right: 15px;}
+    .detail-val { color:var(--text); text-align:right; word-break:break-all; flex:1; }
   </style>
 </head>
 <body>
@@ -273,7 +273,7 @@ function selectItem(item) {
     let isLegacy = !!item.json.collects;
     let props = isLegacy ? item.json.collects[0] : item.json.properties;
     
-    // Detailed Metadata Extraction
+    // Metadata Extraction
     let dateTime = isLegacy ? props.startAtUTC : (props.datetime || props.start_datetime);
     let satellite = isLegacy ? item.json.umbraSatelliteName : props.platform;
     let mode = isLegacy ? item.json.imagingMode : props['sar:instrument_mode'];
@@ -282,13 +282,20 @@ function selectItem(item) {
     let track = isLegacy ? (props.satelliteTrack || '—') : (props['sat:orbit_state'] || '—');
     let incidence = isLegacy ? (props.angleIncidenceDegrees ? props.angleIncidenceDegrees.toFixed(2) + '°' : '—') : (props['view:incidence_angle'] ? props['view:incidence_angle'].toFixed(2) + '°' : '—');
     let squint = isLegacy ? (props.angleSquintDegrees ? props.angleSquintDegrees.toFixed(2) + '°' : '—') : (props['umbra:squint_angle_degrees_off_broadside'] ? props['umbra:squint_angle_degrees_off_broadside'].toFixed(2) + '°' : '—');
-    let azRes = isLegacy ? (props.maxGroundResolution ? props.maxGroundResolution.azimuthMeters.toFixed(3) + 'm' : '—') : (props['sar:resolution_azimuth'] ? props['sar:resolution_azimuth'].toFixed(3) + 'm' : '—');
-    let rngRes = isLegacy ? (props.maxGroundResolution ? props.maxGroundResolution.rangeMeters.toFixed(3) + 'm' : '—') : (props['sar:resolution_range'] ? props['sar:resolution_range'].toFixed(3) + 'm' : '—');
+    
+    let azRes, rngRes;
+    if (isLegacy) {
+      azRes = props.maxGroundResolution ? props.maxGroundResolution.azimuthMeters.toFixed(3) + 'm' : '—';
+      rngRes = props.maxGroundResolution ? props.maxGroundResolution.rangeMeters.toFixed(3) + 'm' : '—';
+    } else {
+      azRes = props['sar:resolution_azimuth'] ? props['sar:resolution_azimuth'].toFixed(3) + 'm' : '—';
+      rngRes = props['sar:resolution_range'] ? props['sar:resolution_range'].toFixed(3) + 'm' : '—';
+    }
 
     let rows = [
         ['Dataset', item.entry.dataset_name],
         ['Location', item.entry.location],
-        ['Date / Time', dateTime.replace('T', ' ').replace('Z', ' UTC')],
+        ['Date / Time (UTC)', dateTime.replace('T', ' ').replace('Z', '')],
         ['Satellite', satellite],
         ['Imaging Mode', mode],
         ['Polarisation', polarization],
