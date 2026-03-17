@@ -19,9 +19,6 @@
     #status { font-size:11px; color:var(--muted); font-family:'IBM Plex Mono',monospace; margin-left:auto; }
     .hdr-btn { background:none; border:1px solid var(--border); color:var(--muted); padding:4px 10px; border-radius:4px; cursor:pointer; font-size:12px; font-family:'IBM Plex Mono',monospace; transition:all 0.15s; white-space:nowrap; }
     .hdr-btn:hover { border-color:var(--accent); color:var(--accent); }
-    .hdr-btn.reload:hover { border-color:var(--accent2); color:var(--accent2); }
-    .hdr-btn.reload.spinning { color:var(--accent2); border-color:var(--accent2); animation:spin 1s linear infinite; }
-    @keyframes spin { to { transform:rotate(360deg); } }
     #load-bar { position:absolute; bottom:0; left:0; height:2px; background:var(--accent); width:0%; transition:width 0.3s; z-index:999; }
     
     #body { display:flex; flex:1; overflow:hidden; }
@@ -55,35 +52,32 @@
     .item-location { font-size:10px; font-family:'IBM Plex Mono',monospace; color:var(--muted); text-transform:uppercase; letter-spacing:0.08em; }
     .item-name { font-size:11px; font-family:'IBM Plex Mono',monospace; color:var(--text); line-height:1.4; word-break:break-all; }
     
-    /* SAR Toggle Switch */
     .sar-toggle-wrap { flex-shrink:0; }
     .sar-toggle-wrap input { display:none; }
     .sar-toggle-wrap label { 
         display:block; width:22px; height:22px; border:1px solid var(--border); border-radius:4px; 
         cursor:pointer; text-align:center; line-height:20px; font-size:12px; color:var(--muted);
-        transition: all 0.2s;
     }
     .sar-toggle-wrap input:checked + label { background:var(--accent2); border-color:var(--accent2); color:white; }
-    .sar-toggle-wrap.loading label { animation: pulse 1s infinite; color: var(--accent2); }
-    @keyframes pulse { 0% { opacity: 0.4; } 50% { opacity: 1; } 100% { opacity: 0.4; } }
 
     .item-meta { display:flex; gap:6px; flex-wrap:wrap; }
     .item-tag { font-size:9px; font-family:'IBM Plex Mono',monospace; padding:1px 4px; border-radius:3px; border:1px solid var(--border); color:var(--muted); }
     
-    /* Per-item opacity control */
     .item-opacity-ctrl { display:none; align-items:center; gap:8px; margin-top:4px; padding-top:6px; border-top:1px dashed var(--border); }
     .item-opacity-ctrl.visible { display:flex; }
     .item-opacity-ctrl label { font-size:9px; font-family:'IBM Plex Mono',monospace; color:var(--muted); text-transform:uppercase; }
     .item-opacity-ctrl input { flex:1; height:4px; accent-color: var(--accent2); cursor: pointer; }
 
     #map { flex:1; position: relative; }
-    #detail-panel { border-top:1px solid var(--border); background:var(--bg); flex-shrink:0; display:none; flex-direction:column; max-height:250px; }
+    #detail-panel { border-top:1px solid var(--border); background:var(--surface); flex-shrink:0; display:none; flex-direction:column; max-height:450px; }
     #detail-panel.visible { display:flex; }
     #detail-header { display:flex; justify-content:space-between; align-items:center; padding:8px 14px; border-bottom:1px solid var(--border); }
     #detail-header h3 { font-size:11px; font-family:'IBM Plex Mono',monospace; color:var(--accent); text-transform:uppercase; }
-    #detail-rows { overflow-y:auto; flex:1; padding:6px 14px; }
-    .detail-row { display:flex; justify-content:space-between; font-size:10px; font-family:'IBM Plex Mono',monospace; padding:2px 0; }
-    .detail-key { color:var(--muted); }
+    #detail-rows { overflow-y:auto; flex:1; padding:10px 14px; }
+    .detail-row { display:flex; justify-content:space-between; font-size:11px; font-family:'IBM Plex Mono',monospace; padding:4px 0; border-bottom:1px solid rgba(48,54,61,0.3); }
+    .detail-row:last-child { border-bottom:none; }
+    .detail-key { color:var(--muted); text-transform:uppercase; font-size:10px; }
+    .detail-val { color:var(--text); text-align:right; word-break:break-all; padding-left:12px; }
   </style>
 </head>
 <body>
@@ -114,7 +108,7 @@
     <div id="detail-panel">
       <div id="detail-header">
         <h3>Collect Details</h3>
-        <span id="detail-close" style="cursor:pointer; color:var(--muted)">&#10005;</span>
+        <span id="detail-close" style="cursor:pointer; color:var(--muted); font-size:18px;">&times;</span>
       </div>
       <div id="detail-rows"></div>
     </div>
@@ -144,9 +138,8 @@ document.getElementById('map-mode-btn').onclick = function() {
   this.innerHTML = next === 'night' ? '&#9728; Day' : '&#9790; Night';
 };
 
-// ── STATE & LAYERS ─────────────────────────────────────────────────────────
 var allItems = [];
-var gecLayers = {}; // keyed by UUID: { layer, blobUrl, opacity }
+var gecLayers = {}; 
 var activeItem = null;
 var sortDescending = true;
 var gdalInstance = null;
@@ -161,12 +154,10 @@ async function getGdal() {
     return gdalInstance;
 }
 
-// ── CATALOG LOADING ────────────────────────────────────────────────────────
 async function loadCatalog() {
   var res = await fetch('catalog/catalog_index.json?t=' + Date.now());
   var entries = await res.json();
   var listEl = document.getElementById('dataset-list');
-  var loadBar = document.getElementById('load-bar');
 
   for (let i = 0; i < entries.length; i++) {
     let entry = entries[i];
@@ -176,7 +167,6 @@ async function loadCatalog() {
       let r = await fetch(relPath + '?t=' + Date.now());
       let json = await r.json();
       
-      // Determine format (Legacy vs STAC)
       let isLegacy = !!json.collects;
       let latLngs = isLegacy 
         ? json.collects[0].footprintPolygonLla.coordinates[0].map(c => [c[1], c[0]])
@@ -207,7 +197,7 @@ async function loadCatalog() {
             </div>
             <div class="sar-toggle-wrap">
                 <input type="checkbox" id="${sarId}">
-                <label for="${sarId}" title="Load SAR Image">⛰</label>
+                <label for="${sarId}" title="Toggle SAR Image">⛰</label>
             </div>
         </div>
         <div class="item-opacity-ctrl" id="opacity-wrap-${i}">
@@ -220,40 +210,32 @@ async function loadCatalog() {
       allItems.push(item);
       listEl.appendChild(row);
 
-      // Event Listeners
       row.querySelector(`#${cbId}`).onchange = e => e.target.checked ? layer.addTo(map) : map.removeLayer(layer);
       row.querySelector('.item-body').onclick = () => selectItem(item);
       
       let sarToggle = row.querySelector(`#${sarId}`);
-      let sarWrap = row.querySelector('.sar-toggle-wrap');
       let opacityWrap = row.querySelector(`#opacity-wrap-${i}`);
-      let rangeInput = row.querySelector(`#range-${i}`);
 
       sarToggle.onchange = async (e) => {
           if (e.target.checked) {
               if (gecLayers[entry.uuid]) {
                   gecLayers[entry.uuid].layer.addTo(map);
-                  opacityWrap.classList.add('visible');
               } else {
-                  sarWrap.classList.add('loading');
                   await loadSarImage(item, i);
-                  sarWrap.classList.remove('loading');
-                  opacityWrap.classList.add('visible');
               }
+              opacityWrap.classList.add('visible');
           } else {
               if (gecLayers[entry.uuid]) map.removeLayer(gecLayers[entry.uuid].layer);
               opacityWrap.classList.remove('visible');
           }
       };
 
-      rangeInput.oninput = (e) => {
+      row.querySelector(`#range-${i}`).oninput = (e) => {
           if (gecLayers[entry.uuid]) gecLayers[entry.uuid].layer.setOpacity(e.target.value);
       };
 
     } catch(e) { console.error(e); }
-    loadBar.style.width = ((i+1)/entries.length*100) + '%';
   }
-  updateFilter();
 }
 
 async function loadSarImage(item, index) {
@@ -266,33 +248,21 @@ async function loadSarImage(item, index) {
         let Gdal = await getGdal();
         let res = await fetch(url);
         let bytes = await res.arrayBuffer();
-        let name = `file_${index}.tif`;
-        
-        let ds = (await Gdal.open([new File([bytes], name)])).datasets[0];
+        let ds = (await Gdal.open([new File([bytes], `f${index}.tif`)])).datasets[0];
         let warped = await Gdal.gdalwarp(ds, ['-t_srs', 'EPSG:4326', '-of', 'GTiff']);
-        await Gdal.close(ds);
-
-        let wBytes = await Gdal.getFileBytes(warped);
-        let wDs = (await Gdal.open([new File([wBytes], 'w.tif')])).datasets[0];
+        let wDs = (await Gdal.open([new File([await Gdal.getFileBytes(warped)], 'w.tif')])).datasets[0];
         let info = await Gdal.getInfo(wDs);
-        
         let png = await Gdal.gdal_translate(wDs, ['-of', 'PNG', '-scale', '-outsize', '1024', '0', '-a_nodata', '0']);
-        await Gdal.close(wDs);
-
-        let pngBytes = await Gdal.getFileBytes(png);
-        let blobUrl = URL.createObjectURL(new Blob([pngBytes], {type: 'image/png'}));
+        let blobUrl = URL.createObjectURL(new Blob([await Gdal.getFileBytes(png)], {type: 'image/png'}));
         
-        let corners = info.corners;
-        let lngs = corners.map(c => c[0]), lats = corners.map(c => c[1]);
-        let bounds = [[Math.min(...lats), Math.min(...lngs)], [Math.max(...lats), Math.max(...lngs)]];
+        let c = info.corners;
+        let bounds = [[Math.min(c[0][1], c[1][1], c[2][1], c[3][1]), Math.min(c[0][0], c[1][0], c[2][0], c[3][0])], 
+                      [Math.max(c[0][1], c[1][1], c[2][1], c[3][1]), Math.max(c[0][0], c[1][0], c[2][0], c[3][0])]];
         
         let sarLayer = L.imageOverlay(blobUrl, bounds, { opacity: 0.9 }).addTo(map);
         gecLayers[item.entry.uuid] = { layer: sarLayer, blobUrl: blobUrl };
-
-    } catch(e) {
-        alert("Failed to load SAR image: " + item.entry.dataset_name);
-        item.row.querySelector('.sar-toggle-wrap input').checked = false;
-    }
+        await Gdal.close(ds); await Gdal.close(wDs);
+    } catch(e) { console.error(e); }
 }
 
 function selectItem(item) {
@@ -303,31 +273,41 @@ function selectItem(item) {
     let isLegacy = !!item.json.collects;
     let props = isLegacy ? item.json.collects[0] : item.json.properties;
     
+    // Detailed Metadata Extraction
+    let dateTime = isLegacy ? props.startAtUTC : (props.datetime || props.start_datetime);
+    let satellite = isLegacy ? item.json.umbraSatelliteName : props.platform;
+    let mode = isLegacy ? item.json.imagingMode : props['sar:instrument_mode'];
+    let polarization = isLegacy ? (props.polarizations ? props.polarizations.join(', ') : '—') : (props['sar:polarizations'] ? props['sar:polarizations'].join(', ') : '—');
+    let side = isLegacy ? (props.lookDirection || '—') : (props['sar:observation_direction'] || '—');
+    let track = isLegacy ? (props.satelliteTrack || '—') : (props['sat:orbit_state'] || '—');
+    let incidence = isLegacy ? (props.angleIncidenceDegrees ? props.angleIncidenceDegrees.toFixed(2) + '°' : '—') : (props['view:incidence_angle'] ? props['view:incidence_angle'].toFixed(2) + '°' : '—');
+    let squint = isLegacy ? (props.angleSquintDegrees ? props.angleSquintDegrees.toFixed(2) + '°' : '—') : (props['umbra:squint_angle_degrees_off_broadside'] ? props['umbra:squint_angle_degrees_off_broadside'].toFixed(2) + '°' : '—');
+    let azRes = isLegacy ? (props.maxGroundResolution ? props.maxGroundResolution.azimuthMeters.toFixed(3) + 'm' : '—') : (props['sar:resolution_azimuth'] ? props['sar:resolution_azimuth'].toFixed(3) + 'm' : '—');
+    let rngRes = isLegacy ? (props.maxGroundResolution ? props.maxGroundResolution.rangeMeters.toFixed(3) + 'm' : '—') : (props['sar:resolution_range'] ? props['sar:resolution_range'].toFixed(3) + 'm' : '—');
+
     let rows = [
-        ['Mode', isLegacy ? item.json.imagingMode : props['sar:instrument_mode']],
-        ['Incidence', (isLegacy ? props.angleIncidenceDegrees : props['view:incidence_angle']).toFixed(2) + '°'],
-        ['Resolution', isLegacy ? props.maxGroundResolution.azimuthMeters.toFixed(2) + 'm' : props['sar:resolution_azimuth'].toFixed(2) + 'm'],
-        ['Pol', isLegacy ? props.polarizations[0] : props['sar:polarizations'][0]]
+        ['Dataset', item.entry.dataset_name],
+        ['Location', item.entry.location],
+        ['Date / Time', dateTime.replace('T', ' ').replace('Z', ' UTC')],
+        ['Satellite', satellite],
+        ['Imaging Mode', mode],
+        ['Polarisation', polarization],
+        ['Track / Side', `${track} / ${side}`],
+        ['Incidence Angle', incidence],
+        ['Squint Angle', squint],
+        ['Az Res', azRes],
+        ['Rng Res', rngRes],
+        ['UUID', item.entry.uuid]
     ];
 
     document.getElementById('detail-rows').innerHTML = rows.map(r => `
-        <div class="detail-row"><span class="detail-key">${r[0]}</span><span>${r[1]}</span></div>
+        <div class="detail-row"><span class="detail-key">${r[0]}</span><span class="detail-val">${r[1]}</span></div>
     `).join('');
     document.getElementById('detail-panel').classList.add('visible');
     map.fitBounds(item.layer.getBounds(), { padding: [50, 50] });
 }
 
-function updateFilter() {
-    let q = document.getElementById('search-input').value.toLowerCase();
-    allItems.forEach(i => {
-        let match = i.entry.dataset_name.toLowerCase().includes(q);
-        i.row.style.display = match ? 'flex' : 'none';
-    });
-}
-
-document.getElementById('search-input').oninput = updateFilter;
 document.getElementById('detail-close').onclick = () => document.getElementById('detail-panel').classList.remove('visible');
-
 loadCatalog();
 </script>
 </body>
